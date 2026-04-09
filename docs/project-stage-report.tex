@@ -1,0 +1,423 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{titlesec}
+\usepackage{xcolor}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue
+}
+
+\definecolor{codegray}{RGB}{245,245,245}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codegray},
+    frame=single,
+    breaklines=true,
+    columns=fullflexible
+}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+
+\title{Wait Less\\Detailed Project Stage Report}
+\author{Sapienza IoT Project Team}
+\date{April 8, 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Executive Summary}
+
+Wait Less is a queue-aware adaptive traffic light project for a two-way intersection built around two ESP32 LoRa nodes, two sensing lanes, and six traffic-light LEDs. The system is designed to sense incoming traffic and queue presence on both sides of the intersection, exchange compact telemetry between nodes, and adapt the green time based on current demand instead of relying on a fixed cycle.
+
+At the current stage of development, the project has moved from a concept description into a structured technical repository with a shared controller, firmware skeletons for both boards, project documentation, and a local simulator that already demonstrates adaptive behavior. This report documents the implementation stages from the initial technical foundation to the expected final delivery, with special attention to the checkpoint delivery scheduled for Friday, April 10, 2026.
+
+\section{Project Objective}
+
+The main objective of the project is to build an IoT-based traffic-light prototype that:
+
+\begin{itemize}
+    \item detects traffic on two sides of an intersection,
+    \item estimates traffic demand using near and far sensors,
+    \item exchanges lightweight telemetry using LoRa,
+    \item and dynamically assigns green light time to the side with higher demand.
+\end{itemize}
+
+The system is intentionally designed as a distributed embedded system rather than a single centralized microcontroller. This allows the project to demonstrate multiple IoT concepts at once: sensing, embedded processing, communication, control logic, and evaluation under real-time constraints.
+
+\section{System Overview}
+
+\subsection{High-Level Architecture}
+
+The system is organized around two nodes:
+
+\begin{itemize}
+    \item \textbf{Node A}: reads the sensors for side A and transmits telemetry over LoRa.
+    \item \textbf{Node B}: reads the sensors for side B, receives telemetry from Node A, executes the adaptive controller, and drives the six LEDs representing the traffic lights.
+\end{itemize}
+
+Each side uses two sensors:
+
+\begin{itemize}
+    \item one far sensor to detect approaching vehicles,
+    \item one near sensor to detect queue presence close to the stop line.
+\end{itemize}
+
+The traffic controller uses these measurements to estimate demand and decide whether to keep the current green phase or switch to the other side.
+
+\subsection{Current Repository Structure}
+
+The current implementation is organized as follows:
+
+\begin{itemize}
+    \item \texttt{README.md}: project summary and usage notes,
+    \item \texttt{platformio.ini}: PlatformIO environments for the two ESP32 nodes,
+    \item \texttt{lib/traffic\_control/}: shared traffic types, sensing, messaging, and controller logic,
+    \item \texttt{firmware/node\_a/main.cpp}: sensing firmware for side A,
+    \item \texttt{firmware/node\_b/main.cpp}: sensing and controller firmware for side B,
+    \item \texttt{simulation/simulate\_traffic.py}: local simulation of the adaptive controller,
+    \item \texttt{docs/checkpoint-demo.md}: presentation and demo outline,
+    \item \texttt{docs/project-roadmap.md}: stage-based development roadmap.
+\end{itemize}
+
+\subsection{Current Control Logic}
+
+The shared controller currently follows a simple and safe adaptive strategy:
+
+\begin{enumerate}
+    \item keep a minimum green duration to avoid unstable rapid switching,
+    \item switch if the current green side becomes empty and the other side has demand,
+    \item switch after the minimum green if the other side is clearly busier,
+    \item force a switch after a maximum green time if the other side is still waiting.
+\end{enumerate}
+
+The queue-aware demand score combines queue estimate, far-sensor occupancy, and near-sensor occupancy. This makes the controller more robust than a binary vehicle detector because it can distinguish between a lane that is only momentarily occupied and a lane that is building pressure.
+
+\subsection{Telemetry Format}
+
+The current implementation uses a compact CSV-style message:
+
+\begin{lstlisting}
+A,1,0,4,2,2,0,12345
+\end{lstlisting}
+
+This example represents:
+
+\begin{itemize}
+    \item side A,
+    \item far sensor occupied,
+    \item near sensor not occupied,
+    \item incoming count equal to 4,
+    \item passed count equal to 2,
+    \item estimated queue equal to 2,
+    \item emergency request equal to 0,
+    \item timestamp equal to 12345 ms.
+\end{itemize}
+
+\section{Current Technical Progress}
+
+\subsection{Implemented Assets}
+
+The following technical assets have already been created:
+
+\begin{itemize}
+    \item a shared embedded controller implementation in \texttt{AdaptiveController.cpp},
+    \item a queue estimator in \texttt{TrafficSensing.cpp},
+    \item telemetry encoding and decoding in \texttt{NodeMessaging.cpp},
+    \item firmware entry points for both nodes,
+    \item a simulation script that demonstrates controller behavior over time,
+    \item documentation for the checkpoint demo and the full roadmap.
+\end{itemize}
+
+\subsection{Simulation Evidence}
+
+The local simulation has already been executed successfully and shows the expected behavior: the controller starts with side A green, keeps it while side A is busy, schedules a yellow phase when side B becomes clearly busier, and then switches to side B.
+
+An excerpt of the simulation output is shown below:
+
+\begin{lstlisting}
+time | queueA | queueB | green | phase  | currentDemand | otherDemand
+   0s |      3 |      0 |     A |  GREEN |            15 |           0
+  12s |      1 |      4 |     A | YELLOW |             9 |          18
+  14s |      1 |      4 |     B |  GREEN |            18 |           9
+\end{lstlisting}
+
+This result is important for the checkpoint because it provides a valid technical demo even before the full hardware integration is complete.
+
+\subsection{Checkpoint Baseline Parameters}
+
+For the April 10 checkpoint, the team should present the current implementation baseline using explicit numerical values already defined in the repository:
+
+\begin{itemize}
+    \item control-loop interval: \texttt{200 ms},
+    \item telemetry transmission interval: \texttt{1000 ms},
+    \item far ultrasonic threshold: \texttt{35 cm},
+    \item near ultrasonic threshold: \texttt{18 cm},
+    \item minimum green time: \texttt{5000 ms},
+    \item yellow time: \texttt{2000 ms},
+    \item maximum green time: \texttt{20000 ms},
+    \item switching margin: \texttt{4} demand-score points,
+    \item demand-score model: \texttt{3 * queue + 2 * farOccupied + 4 * nearOccupied},
+    \item example telemetry payload: \texttt{A,1,0,4,2,2,0,12345}, which is \texttt{19 bytes}.
+\end{itemize}
+
+These values provide a concrete baseline for the review. They are more defensible than qualitative claims because they correspond directly to the current source code.
+
+\subsection{Checkpoint Metrics And Experimental Evidence}
+
+The checkpoint should focus on the metrics that can already be justified from the current code and simulation baseline:
+
+\begin{itemize}
+    \item controller update period,
+    \item telemetry update period,
+    \item telemetry payload size,
+    \item response time from a traffic change to yellow start,
+    \item response time from yellow start to new green,
+    \item upper bound on waiting time enforced by the maximum green cap.
+\end{itemize}
+
+The following scripted controller experiments have already been executed on the current baseline:
+
+\begin{enumerate}
+    \item \textbf{Equal demand should not trigger a switch.} From \texttt{t = 6 s} to \texttt{t = 11 s}, both sides have queue \texttt{2}. The controller keeps side A green during the full interval. This confirms that equal demand does not create unnecessary oscillation.
+    \item \textbf{A busier opposing side should trigger a switch after the minimum green is satisfied.} At \texttt{t = 12 s}, side A queue becomes \texttt{1} and side B queue becomes \texttt{4}. Yellow starts at \texttt{12 s} and side B becomes green at \texttt{14 s}. This confirms that the controller reacts immediately at the decision level while preserving the \texttt{2000 ms} yellow interval.
+    \item \textbf{If the current green side becomes empty while the other side has demand, the controller should yield at the first allowed instant.} In a scripted test where side A becomes empty at \texttt{t = 6 s} and side B queue becomes \texttt{2}, yellow starts at \texttt{6 s} and side B becomes green at \texttt{8 s}. This confirms that empty-lane detection is connected correctly to the switching logic.
+    \item \textbf{The maximum green cap should prevent starvation.} In a scripted test where side A queue remains \texttt{3} and side B queue remains \texttt{1}, yellow starts at \texttt{20 s} and side B becomes green at \texttt{22 s}. This confirms that one side cannot keep green indefinitely while the other side still has demand.
+\end{enumerate}
+
+These experiments do not yet replace hardware evaluation, but they are sufficient to demonstrate that the decision logic already follows a measurable and testable process.
+
+\section{Stage Summary}
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.14\textwidth} >{\raggedright\arraybackslash}p{0.39\textwidth} >{\raggedright\arraybackslash}p{0.15\textwidth} >{\raggedright\arraybackslash}p{0.22\textwidth}}
+\toprule
+\textbf{Stage} & \textbf{Main Goal} & \textbf{Status} & \textbf{Main Output} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Stage} & \textbf{Main Goal} & \textbf{Status} & \textbf{Main Output} \\
+\midrule
+\endhead
+0 & Align the project and create the initial technical foundation & Completed & Repository, shared logic, simulator, documentation \\
+1 & Prepare and deliver the April 10 checkpoint presentation and demo & In progress & Slides, demo, video, repository package \\
+2 & Bring up the sensing hardware and validate measurements & Planned & Calibrated sensors and verified LED states \\
+3 & Integrate real LoRa communication between nodes & Planned & Packet exchange and communication logs \\
+4 & Connect live sensing to the adaptive traffic-light controller & Planned & End-to-end adaptive prototype \\
+5 & Evaluate performance and improve the system & Planned & Metrics, logs, and refined parameters \\
+6 & Package the final submission and final demo & Planned & Final repository, report, slides, and video \\
+\bottomrule
+\end{longtable}
+
+\section{Detailed Stage Report}
+
+\subsection{Stage 0: Project Alignment and Technical Foundation}
+
+\textbf{Goal.} The purpose of Stage 0 was to convert the original idea into a structured technical project that could be implemented, demonstrated, and extended.
+
+\textbf{Work completed.}
+
+\begin{itemize}
+    \item The project concept was consolidated into a single technical direction based on two ESP32 LoRa nodes and queue-aware traffic-light control.
+    \item The repository was structured so that code, documentation, and demo material are separated clearly.
+    \item A shared traffic-control library was created to avoid duplicating decision logic across firmware files.
+    \item A sensing model was added to track incoming traffic, passed vehicles, and estimated queue size.
+    \item A local simulator was created to demonstrate traffic scenarios without depending on full hardware readiness.
+\end{itemize}
+
+\textbf{Why this stage matters.} Without this stage, the project would still exist only as a presentation concept. Completing Stage 0 created a real technical baseline on top of which the remaining work can be carried out in a disciplined way.
+
+\textbf{Deliverables already produced.}
+
+\begin{itemize}
+    \item \texttt{README.md}
+    \item \texttt{platformio.ini}
+    \item \texttt{lib/traffic\_control/*}
+    \item \texttt{firmware/node\_a/main.cpp}
+    \item \texttt{firmware/node\_b/main.cpp}
+    \item \texttt{simulation/simulate\_traffic.py}
+    \item \texttt{docs/checkpoint-demo.md}
+    \item \texttt{docs/project-roadmap.md}
+\end{itemize}
+
+\textbf{Status.} Completed.
+
+\subsection{Stage 1: Checkpoint Delivery on April 10, 2026}
+
+\textbf{Goal.} The purpose of Stage 1 is to demonstrate clear technical progress during the 5-minute checkpoint delivery, using explicit requirements, measurable metrics, and concrete experiments rather than only architecture diagrams.
+
+\textbf{Required outputs for this stage.}
+
+\begin{itemize}
+    \item a short technical presentation,
+    \item a checkpoint slide that states the current baseline requirements with explicit numbers,
+    \item a checkpoint slide that defines the metrics used for verification,
+    \item a checkpoint slide that summarizes experiments, results, and conclusions,
+    \item a clear demo of at least one core functionality,
+    \item early evaluation of the main components,
+    \item a public YouTube video of the demo,
+    \item and a GitHub repository containing all the material.
+\end{itemize}
+
+\textbf{Material already available for the checkpoint.}
+
+\begin{itemize}
+    \item A project overview and technical structure are already documented.
+    \item The simulator provides a credible demo of adaptive control behavior.
+    \item The firmware skeleton already expresses the node roles and data flow.
+    \item The baseline controller parameters already provide numeric values for the checkpoint discussion.
+    \item The roadmap and checkpoint notes already describe the remaining work.
+\end{itemize}
+
+\textbf{Remaining work before the checkpoint.}
+
+\begin{itemize}
+    \item prepare or refine the presentation slides around requirements, metrics, and experiments,
+    \item record a short demo video,
+    \item create a public repository and upload the material,
+    \item summarize the current experiments and results in a compact table,
+    \item align all documentation on the exact hardware choice.
+\end{itemize}
+
+\textbf{Recommended checkpoint demo.}
+
+\begin{enumerate}
+    \item Explain the architecture in one slide.
+    \item Present the baseline requirements with explicit numbers.
+    \item Present the metrics and the current experiment results.
+    \item Run the simulator and explain one switching event from demand change to yellow to green.
+    \item If possible, add a short bench clip with LEDs or manually emulated sensor input.
+    \item End with the development plan for the next stages.
+\end{enumerate}
+
+\textbf{Status.} In progress.
+
+\subsection{Stage 2: Hardware Bring-Up and Sensor Validation}
+
+\textbf{Goal.} Stage 2 focuses on making the sensing hardware reliable on the real boards.
+
+\textbf{Planned work.}
+
+\begin{itemize}
+    \item Wire the far and near sensors for both sides.
+    \item Confirm the final sensor technology used in the project documentation.
+    \item Calibrate thresholds for lane occupancy and queue detection.
+    \item Validate that the six LED outputs match the expected traffic-light states.
+\end{itemize}
+
+\textbf{Expected results.} At the end of this stage, the team should know whether the sensors are stable enough for repeated testing and what threshold values should be used in the firmware.
+
+\textbf{Main risk.} If the sensor readings are noisy or inconsistent, the controller may switch at the wrong time. This stage is therefore a prerequisite for trustworthy integrated testing.
+
+\textbf{Status.} Planned.
+
+\subsection{Stage 3: LoRa Communication Integration}
+
+\textbf{Goal.} Replace the current communication stub with real LoRa transmission between the two nodes.
+
+\textbf{Planned work.}
+
+\begin{itemize}
+    \item Integrate the chosen LoRa library into the firmware.
+    \item Send telemetry from Node A to Node B.
+    \item Decode and validate the received telemetry on Node B.
+    \item Measure message timing, reliability, and the effect of packet loss.
+\end{itemize}
+
+\textbf{Expected results.} At the end of this stage, the system should support real distributed communication instead of local emulation.
+
+\textbf{Main risk.} Communication failures may create stale data at the controller. This means the firmware should be designed to tolerate an occasional missed packet and continue safely.
+
+\textbf{Status.} Planned.
+
+\subsection{Stage 4: Full Adaptive Traffic-Light Control}
+
+\textbf{Goal.} Connect real sensor input and real communication to the controller and drive the physical traffic-light LEDs accordingly.
+
+\textbf{Planned work.}
+
+\begin{itemize}
+    \item Use live telemetry from both sides as controller input.
+    \item Apply minimum green, yellow, and maximum green timing rules.
+    \item Validate that the controller switches at appropriate times.
+    \item Test the behavior under empty-lane, balanced, and asymmetric demand scenarios.
+\end{itemize}
+
+\textbf{Expected results.} This stage should produce the first full end-to-end prototype that behaves adaptively in real time.
+
+\textbf{Main risk.} Even if sensing and communication work separately, timing interactions may still create instability. Bench testing with controlled scenarios is essential.
+
+\textbf{Status.} Planned.
+
+\subsection{Stage 5: Evaluation and System Improvement}
+
+\textbf{Goal.} Produce measurable evidence about system behavior and improve the design where necessary.
+
+\textbf{Planned work.}
+
+\begin{itemize}
+    \item Measure responsiveness and latency.
+    \item Estimate or measure average node energy usage.
+    \item Log representative traffic scenarios.
+    \item Compare the adaptive strategy to a simple fixed-cycle baseline.
+    \item Tune thresholds, timing values, and transmission intervals.
+\end{itemize}
+
+\textbf{Expected results.} By the end of this stage, the project should not only work, but also provide evidence that the design decisions are technically justified.
+
+\textbf{Main risk.} A working prototype without evaluation is difficult to defend academically. This stage turns implementation into engineering evidence.
+
+\textbf{Status.} Planned.
+
+\subsection{Stage 6: Final Delivery and Project Packaging}
+
+\textbf{Goal.} Prepare the final complete submission with coherent documentation, final code, final demo material, and a clear explanation of the system.
+
+\textbf{Planned work.}
+
+\begin{itemize}
+    \item Finalize the repository structure and documentation.
+    \item Prepare the final slides and video demo.
+    \item Summarize the architecture, implementation choices, results, and lessons learned.
+    \item Ensure that all required submission links and artifacts are available in the same repository.
+\end{itemize}
+
+\textbf{Expected results.} The final stage should produce a complete and reviewable project package, not only a collection of source files.
+
+\textbf{Main risk.} If packaging is left too late, the project may be technically strong but difficult to evaluate. This stage ensures the work is communicated professionally.
+
+\textbf{Status.} Planned.
+
+\section{Immediate Next Actions}
+
+The most important next actions for the team are the following:
+
+\begin{enumerate}
+    \item complete the checkpoint presentation for April 10, 2026,
+    \item organize the presentation around requirements, metrics, and experiments,
+    \item record the simulator demo and, if possible, a short hardware clip,
+    \item publish the project in a GitHub repository,
+    \item keep the hardware documentation consistent across the report, slides, and code,
+    \item begin Stage 2 hardware validation immediately after the checkpoint.
+\end{enumerate}
+
+\section{Conclusion}
+
+The project has already completed the most important transition from concept to implementation baseline. The repository now contains working documentation, an adaptive controller, firmware scaffolding for both nodes, and a simulation-based demo that can support the checkpoint presentation. The next step is not to redesign the project, but to continue integration in an orderly way: first the checkpoint delivery, then hardware validation, communication, full integration, evaluation, and final packaging.
+
+This staged approach reduces risk and gives the team a clear path from the current checkpoint to the final delivery. It also ensures that each technical component of the system is implemented, tested, and documented before the project is presented as complete.
+
+\end{document}

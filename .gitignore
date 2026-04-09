@@ -1,0 +1,11 @@
+.pio/
+__pycache__/
+*.pyc
+*.log
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc
+
