@@ -19,6 +19,7 @@
 | Delivery | Description | Link |
 |----------|-------------|------|
 | 1st Delivery | Idea & Project Presentation | [View Slides](https://docs.google.com/presentation/d/17HmSNFQtwOzLt_qvx9hlwrjwNZbN1Csb/edit?usp=sharing&ouid=107142945947047571947&rtpof=true&sd=true) |
+| 2st Delivery | 1st Demo | [View Slides](https://docs.google.com/presentation/d/1oQaE_ZZB3Die6DkIrVUuoB04xid04nk0/edit?slide=id.p1#slide=id.p1) |
 
 ---
 
