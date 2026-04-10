@@ -15,8 +15,8 @@ These are the numbers already defined in the current codebase and should be used
 
 - control loop interval: `200 ms`
 - telemetry transmission interval: `1000 ms`
-- far ultrasonic threshold: `35 cm`
-- near ultrasonic threshold: `18 cm`
+- far ultrasonic threshold: `100 cm` (detection window around the far sensor, placed ~40 m upstream)
+- near ultrasonic threshold: `100 cm` (detection window around the near sensor, at the stop line)
 - minimum green time: `5000 ms`
 - yellow time: `2000 ms`
 - maximum green time: `20000 ms`
@@ -44,8 +44,8 @@ Use this table directly in the presentation. It links each metric to its current
 | --- | --- | --- | --- |
 | Control-loop period | `200 ms` | `firmware/shared/ProjectConfig.h` | Defines how often the controller can react to sensor changes |
 | Telemetry update period | `1000 ms` | `firmware/shared/ProjectConfig.h` | Defines how fresh Node A data is when Node B makes decisions |
-| Far ultrasonic threshold | `35 cm` | `firmware/shared/ProjectConfig.h` | Baseline for detecting approaching traffic |
-| Near ultrasonic threshold | `18 cm` | `firmware/shared/ProjectConfig.h` | Baseline for detecting queue presence near the stop line |
+| Far ultrasonic threshold | `100 cm` | `firmware/shared/ProjectConfig.h` | Detection window around the far sensor (placed ~40 m upstream) |
+| Near ultrasonic threshold | `100 cm` | `firmware/shared/ProjectConfig.h` | Detection window around the near sensor (at the stop line) |
 | Minimum green time | `5000 ms` | `firmware/shared/ProjectConfig.h` | Prevents unstable rapid switching |
 | Yellow transition time | `2000 ms` | `firmware/shared/ProjectConfig.h` | Enforces a safety interval before changing green side |
 | Maximum green time | `20000 ms` | `firmware/shared/ProjectConfig.h` | Prevents starvation of the waiting side |

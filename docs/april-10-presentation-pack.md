@@ -59,6 +59,8 @@ The main message should be:
 - `R7`: switching is demand-based, not purely timer-based
 - demand score:
   `3 * queue + 2 * farOccupied + 4 * nearOccupied`
+ - sensor placement: far sensor is placed ~40 m upstream, near sensor is at the stop line
+ - detection window: both sensors use a `100 cm` threshold around the sensor itself
 
 ### What to say
 

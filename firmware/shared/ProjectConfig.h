@@ -8,8 +8,8 @@ constexpr uint32_t kLoopIntervalMs = 200;
 constexpr uint32_t kTelemetryIntervalMs = 1000;
 constexpr uint32_t kRemoteTelemetryTimeoutMs = 3000;
 
-constexpr float kFarThresholdCm = 35.0f;
-constexpr float kNearThresholdCm = 18.0f;
+constexpr float kFarThresholdCm = 100.0f;
+constexpr float kNearThresholdCm = 100.0f;
 
 constexpr uint32_t kMinGreenMs = 5000;
 constexpr uint32_t kMaxGreenMs = 20000;

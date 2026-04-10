@@ -85,7 +85,7 @@ Module or file group & Responsibility in the system \\
 \toprule
 Step & Implementation approach used in the project \\
 \midrule
-1 & Read raw ultrasonic distances on each node and convert them into far/near occupancy states using explicit thresholds. \\
+1 & Read raw ultrasonic distances on each node and convert them into far/near occupancy states using explicit thresholds (far sensor placed $\sim$40 m upstream; each sensor uses a 100 cm detection window around itself). \\
 2 & Estimate queue state from sensor events rather than switching directly on a single binary trigger. \\
 3 & Keep the embedded logic shared in reusable library files so the simulator and firmware follow the same policy. \\
 4 & Make Node A a thin sensing and telemetry node, and keep Node B as the control and actuation node. \\
@@ -135,8 +135,8 @@ Baseline parameter & Current value & Use in the talk \\
 \midrule
 Control loop interval & 200 ms & State this as the current controller reaction baseline. \\
 Telemetry period & 1000 ms & State this as the remote-data freshness baseline. \\
-Far threshold & 35 cm & State this as the current approach-detection threshold. \\
-Near threshold & 18 cm & State this as the current stop-line occupancy threshold. \\
+Far threshold & 100 cm & Detection window around the far sensor (placed $\sim$40 m upstream). \\
+Near threshold & 100 cm & Detection window around the near sensor (at the stop line). \\
 Minimum green & 5000 ms & State this as the anti-oscillation rule. \\
 Yellow interval & 2000 ms & State this as the safety transition rule. \\
 Maximum green & 20000 ms & State this as the anti-starvation rule. \\
@@ -156,8 +156,8 @@ Payload size & 19 bytes & Use this to show communication compactness. \\
 \toprule
 Sensor zone & Zone length & Max speed implied by 200 ms & Assumed max speed & Required loop for that speed \\
 \midrule
-Far threshold (35 cm) & 0.35 m & $\le$ 1.75 m/s $\approx$ 6.3 km/h & 30 km/h (8.33 m/s) & $\le$ 0.35/8.33 s $\approx$ 42 ms \\
-Near threshold (18 cm) & 0.18 m & $\le$ 0.90 m/s $\approx$ 3.2 km/h & 15 km/h (4.17 m/s) & $\le$ 0.18/4.17 s $\approx$ 43 ms \\
+Far threshold (100 cm) & 1.00 m & $\le$ 5.0 m/s $\approx$ 18 km/h & 30 km/h (8.33 m/s) & $\le$ 1.00/8.33 s $\approx$ 120 ms \\
+Near threshold (100 cm) & 1.00 m & $\le$ 5.0 m/s $\approx$ 18 km/h & 15 km/h (4.17 m/s) & $\le$ 1.00/4.17 s $\approx$ 240 ms \\
 \bottomrule
 \end{tabularx}
 \caption{Sampling-interval justification: current 200 ms loop assumes near-stop traffic; higher approach speeds require a faster loop or a wider detection zone.}
@@ -179,8 +179,8 @@ Near threshold (18 cm) & 0.18 m & $\le$ 0.90 m/s $\approx$ 3.2 km/h & 15 km/h (4
 \endhead
 Control-loop period & 200 ms & ProjectConfig.h & Defines how often the controller can react to traffic changes. \\
 Telemetry update period & 1000 ms & ProjectConfig.h & Defines how fresh remote traffic data is when Node B decides. \\
-Far ultrasonic threshold & 35 cm & ProjectConfig.h & Baseline for detecting approaching traffic. \\
-Near ultrasonic threshold & 18 cm & ProjectConfig.h & Baseline for detecting queue presence near the stop line. \\
+Far ultrasonic threshold & 100 cm & ProjectConfig.h & Detection window around the far sensor (placed $\sim$40 m upstream). \\
+Near ultrasonic threshold & 100 cm & ProjectConfig.h & Detection window around the near sensor (at the stop line). \\
 Minimum green time & 5000 ms & ProjectConfig.h & Prevents unstable rapid switching. \\
 Yellow transition time & 2000 ms & ProjectConfig.h & Enforces a safety interval before the other side can become green. \\
 Maximum green time & 20000 ms & ProjectConfig.h & Prevents starvation of the waiting side. \\

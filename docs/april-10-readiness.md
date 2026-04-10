@@ -52,7 +52,7 @@ The checkpoint is ready only when all required submission items are complete, no
 
 - [x] Current control-loop target: `200 ms`
 - [x] Current telemetry interval: `1000 ms`
-- [x] Current thresholds: far `35 cm`, near `18 cm`
+- [x] Current thresholds: far `100 cm`, near `100 cm` (windows around sensors; far sensor placed ~40 m upstream)
 - [x] Current message format example: `A,1,0,4,2,2,0,12345`
 - [x] Current payload example size: `19 bytes`
 - [x] Current yellow transition duration: `2000 ms`
