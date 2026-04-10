@@ -148,6 +148,21 @@ Payload size & 19 bytes & Use this to show communication compactness. \\
 \caption{Exact baseline numbers to place in the requirement slide.}
 \end{table}
 
+\begin{table}[h!]
+\centering
+\small
+\renewcommand{\arraystretch}{1.1}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.18\textwidth} >{\raggedright\arraybackslash}p{0.16\textwidth} >{\raggedright\arraybackslash}p{0.18\textwidth} >{\raggedright\arraybackslash}p{0.18\textwidth} >{\raggedright\arraybackslash}p{0.20\textwidth}}
+\toprule
+Sensor zone & Zone length & Max speed implied by 200 ms & Assumed max speed & Required loop for that speed \\
+\midrule
+Far threshold (35 cm) & 0.35 m & $\le$ 1.75 m/s $\approx$ 6.3 km/h & 30 km/h (8.33 m/s) & $\le$ 0.35/8.33 s $\approx$ 42 ms \\
+Near threshold (18 cm) & 0.18 m & $\le$ 0.90 m/s $\approx$ 3.2 km/h & 15 km/h (4.17 m/s) & $\le$ 0.18/4.17 s $\approx$ 43 ms \\
+\bottomrule
+\end{tabularx}
+\caption{Sampling-interval justification: current 200 ms loop assumes near-stop traffic; higher approach speeds require a faster loop or a wider detection zone.}
+\end{table}
+
 \clearpage
 
 \section{Slide 3: Metrics Table}
