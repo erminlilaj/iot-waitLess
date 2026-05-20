@@ -88,6 +88,14 @@ python tools\road_data_logger.py --port COM3 --node node_b --out data\road_sessi
 
 Let it run for at least 2-3 minutes while the node is doing realistic work.
 
+For the final presentation power graph, the detailed source file is:
+
+```text
+data\road_sessions\ina219_power_timeseries_2026-05-20.csv
+```
+
+It records Node A and Node B current/power every 30 seconds while the ultrasonic sensors were active, LoRa was running, and Node B traffic LEDs were on.
+
 ## Summarize Measured Energy
 
 For one or more INA219 CSV logs:
@@ -114,3 +122,23 @@ python tools\final_evidence_report.py --csv data\data_readed\road_26-05-19_cross
 ```
 
 This directly answers the mandatory energy-consideration requirement with real instrument measurements.
+
+## Final Presentation Power Graph
+
+Generate the slide-ready time-series graph with:
+
+```powershell
+python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --power-csv data\road_sessions\ina219_power_timeseries_2026-05-20.csv --out-dir data\data_readed\presentation_graphs
+```
+
+The generated graph is:
+
+```text
+data\data_readed\presentation_graphs\09_power_consumption_timeseries.png
+```
+
+Use this explanation under the graph:
+
+```text
+Node B consumes more power because it receives LoRa continuously and drives the traffic LEDs. The peaks occur when ultrasonic polling, LoRa activity, and LED load overlap. The average current changed slightly from the earlier manual summary because the final graph recalculates averages from the 21 plotted INA219 samples.
+```

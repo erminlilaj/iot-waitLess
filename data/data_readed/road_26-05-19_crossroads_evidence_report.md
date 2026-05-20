@@ -34,12 +34,12 @@ Source CSV: `data\data_readed\road_26-05-19_crossroads.csv`
 
 ## Energy Measurement / Estimate
 
-- Node A average current: 121.4 mA
+- Node A average current: 123.0 mA
 - Node B average current: 174.8 mA
-- Total average current: 296.2 mA
-- Energy used during this road run: 88.8 mAh (0.44 Wh at 5 V)
-- Estimated 10000 mAh power-bank runtime: 25.3 h
-- Current values were measured with an INA219 high-side current sensor on 2026-05-20. Node A: 121.4 mA average, 97.8-148.6 mA range. Node B: 174.8 mA average, 132.5-219.3 mA range.
+- Total average current: 297.9 mA
+- Energy used during this road run: 89.3 mAh (0.45 Wh at 5 V)
+- Estimated 10000 mAh power-bank runtime: 25.2 h
+- Current values were recalculated from 21 INA219 samples at 30-second intervals on 2026-05-20. Node A: 123.0 mA average, 104.2-147.8 mA range. Node B: 174.8 mA average, 142.5-213.6 mA range. Peak total power was 1812.0 mW at 210 s when ultrasonic polling, LoRa activity, and Node B LED load overlapped.
 
 ## Digital Twin Replay
 

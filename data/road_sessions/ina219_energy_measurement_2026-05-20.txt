@@ -9,10 +9,11 @@ Node A:
 - duration measured: 10 minutes
 - INA219 VCC: 3.3V
 - bus voltage average: 5.02 V
-- current average: 121.4 mA
-- current minimum: 97.8 mA
-- current maximum: 148.6 mA
-- power average: 609.4 mW
+- current average from 30-second graph samples: 123.0 mA
+- current minimum from graph samples: 104.2 mA
+- current maximum from graph samples: 147.8 mA
+- power average from graph samples: 617.6 mW
+- power range from graph samples: 523.1-741.9 mW
 - notes: ultrasonic sensors active, LoRa transmitting periodically, no measurement issue observed
 
 Node B:
@@ -21,13 +22,18 @@ Node B:
 - duration measured: 10 minutes
 - INA219 VCC: 3.3V
 - bus voltage average: 5.01 V
-- current average: 174.8 mA
-- current minimum: 132.5 mA
-- current maximum: 219.3 mA
-- power average: 875.7 mW
+- current average from 30-second graph samples: 174.8 mA
+- current minimum from graph samples: 142.5 mA
+- current maximum from graph samples: 213.6 mA
+- power average from graph samples: 875.9 mW
+- power range from graph samples: 714.0-1070.1 mW
 - notes: LEDs active, LoRa receiving continuously, no measurement issue observed
 
 Derived two-node values:
-- total average current: 296.2 mA
-- total average power: 1485.1 mW
+- total average current from graph samples: 297.9 mA
+- total average power from graph samples: 1493.5 mW
+- peak total power from graph samples: 1812.0 mW at 210 s
 - measurement method: INA219 high-side current sensor
+- graph source: data\road_sessions\ina219_power_timeseries_2026-05-20.csv
+- justification for updated averages: the presentation graph uses all 21 time-series samples at 30-second intervals, so the averages are recalculated from the same data being plotted.
+- situation during peaks: both nodes were running ultrasonic sensing and LoRa; Node B was also powering traffic LEDs, so peaks occur when sensor polling, LoRa activity, and LED load overlap.

@@ -26,9 +26,10 @@ This repository contains the final IoT prototype package for the Wait Less proje
 | False positive rate | `6.7%` |
 | False negative rate | `1.2%` |
 | LoRa stale rows | `65 / 2160 = 3.0%` |
-| Node A current | `121.4 mA` average |
+| Node A current | `123.0 mA` average from 30-second INA219 samples |
 | Node B current | `174.8 mA` average |
-| Estimated 10000 mAh runtime | `25.3 h` |
+| Road run energy | `89.3 mAh` |
+| Estimated 10000 mAh runtime | `25.2 h` |
 | Digital-twin waiting-pressure estimate | `31.6%` lower than fixed-time control |
 
 The waiting-pressure estimate is a digital-twin comparison: the same real road demand from the CSV is replayed under fixed-time control and under the adaptive controller. The road deployment itself proves real detection quality, LoRa freshness, energy consumption, and real-data simulator integration.
@@ -150,7 +151,7 @@ python tools\final_evidence_report.py --csv data\data_readed\road_26-05-19_cross
 Generate slide-ready graphs:
 
 ```powershell
-python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --out-dir data\data_readed\presentation_graphs
+python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --power-csv data\road_sessions\ina219_power_timeseries_2026-05-20.csv --out-dir data\data_readed\presentation_graphs
 ```
 
 Presentation planning:
@@ -215,6 +216,7 @@ Use these files directly in the final slides:
 - `data\data_readed\presentation_graphs\06_detected_vehicle_activations.png`
 - `data\data_readed\presentation_graphs\07_time_saving_estimate.png`
 - `data\data_readed\presentation_graphs\08_digital_twin_pipeline.png`
+- `data\data_readed\presentation_graphs\09_power_consumption_timeseries.png`
 
 ## Final Remaining Work
 

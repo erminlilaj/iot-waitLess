@@ -23,11 +23,12 @@ from traffic_logic import AdaptiveController, Side, SideTelemetry, demand_score 
 
 DEFAULT_CSV = Path("data") / "data_readed" / "road_26-05-19_crossroads.csv"
 DEFAULT_OUT = Path("data") / "data_readed" / "presentation_graphs"
+DEFAULT_POWER_CSV = Path("data") / "road_sessions" / "ina219_power_timeseries_2026-05-20.csv"
 
-NODE_A_MA = 121.4
+NODE_A_MA = 123.0
 NODE_B_MA = 174.8
-NODE_A_MW = 609.4
-NODE_B_MW = 875.7
+NODE_A_MW = 617.6
+NODE_B_MW = 875.9
 BATTERY_MAH = 10000.0
 BATTERY_EFFICIENCY = 0.75
 
@@ -83,6 +84,50 @@ class Metrics:
         return (self.fixed_wait_pressure - self.adaptive_wait_pressure) / self.fixed_wait_pressure * 100.0
 
 
+@dataclass(frozen=True)
+class PowerSample:
+    time_s: float
+    node_a_current_ma: float
+    node_a_power_mw: float
+    node_b_current_ma: float
+    node_b_power_mw: float
+
+    @property
+    def total_current_ma(self) -> float:
+        return self.node_a_current_ma + self.node_b_current_ma
+
+    @property
+    def total_power_mw(self) -> float:
+        return self.node_a_power_mw + self.node_b_power_mw
+
+
+@dataclass(frozen=True)
+class PowerStats:
+    samples: list[PowerSample]
+    node_a_current_ma: float
+    node_b_current_ma: float
+    node_a_power_mw: float
+    node_b_power_mw: float
+    node_a_current_min: float
+    node_a_current_max: float
+    node_b_current_min: float
+    node_b_current_max: float
+    node_a_power_min: float
+    node_a_power_max: float
+    node_b_power_min: float
+    node_b_power_max: float
+    peak_time_s: float
+    peak_total_power_mw: float
+
+    @property
+    def total_current_ma(self) -> float:
+        return self.node_a_current_ma + self.node_b_current_ma
+
+    @property
+    def total_power_mw(self) -> float:
+        return self.node_a_power_mw + self.node_b_power_mw
+
+
 def parse_float(value: str | None, default: float = 0.0) -> float:
     try:
         return float(value or "")
@@ -101,11 +146,69 @@ def occupied(row: dict[str, str], key: str) -> bool:
     return row.get(key) == "1"
 
 
+def mean(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
+
+
 def load_rows(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         rows = [row for row in csv.DictReader(handle) if row.get("node") in {"A", "B"}]
     rows.sort(key=lambda row: parse_float(row.get("elapsed_s")))
     return rows
+
+
+def load_power_samples(path: Path) -> list[PowerSample]:
+    if not path.exists():
+        return []
+
+    with path.open(newline="", encoding="utf-8") as handle:
+        return [
+            PowerSample(
+                time_s=parse_float(row.get("time_s")),
+                node_a_current_ma=parse_float(row.get("node_a_current_mA")),
+                node_a_power_mw=parse_float(row.get("node_a_power_mW")),
+                node_b_current_ma=parse_float(row.get("node_b_current_mA")),
+                node_b_power_mw=parse_float(row.get("node_b_power_mW")),
+            )
+            for row in csv.DictReader(handle)
+        ]
+
+
+def power_stats_from_samples(samples: list[PowerSample]) -> PowerStats:
+    if not samples:
+        samples = [
+            PowerSample(
+                time_s=0.0,
+                node_a_current_ma=NODE_A_MA,
+                node_a_power_mw=NODE_A_MW,
+                node_b_current_ma=NODE_B_MA,
+                node_b_power_mw=NODE_B_MW,
+            )
+        ]
+
+    node_a_current = [sample.node_a_current_ma for sample in samples]
+    node_b_current = [sample.node_b_current_ma for sample in samples]
+    node_a_power = [sample.node_a_power_mw for sample in samples]
+    node_b_power = [sample.node_b_power_mw for sample in samples]
+    peak = max(samples, key=lambda sample: sample.total_power_mw)
+
+    return PowerStats(
+        samples=samples,
+        node_a_current_ma=mean(node_a_current),
+        node_b_current_ma=mean(node_b_current),
+        node_a_power_mw=mean(node_a_power),
+        node_b_power_mw=mean(node_b_power),
+        node_a_current_min=min(node_a_current),
+        node_a_current_max=max(node_a_current),
+        node_b_current_min=min(node_b_current),
+        node_b_current_max=max(node_b_current),
+        node_a_power_min=min(node_a_power),
+        node_a_power_max=max(node_a_power),
+        node_b_power_min=min(node_b_power),
+        node_b_power_max=max(node_b_power),
+        peak_time_s=peak.time_s,
+        peak_total_power_mw=peak.total_power_mw,
+    )
 
 
 def detection_bucket(row: dict[str, str]) -> str | None:
@@ -314,14 +417,14 @@ def graph_detection_rates(metrics: Metrics, out_dir: Path) -> None:
     finish(fig, out_dir / "02_detection_quality_rates.png")
 
 
-def graph_energy(out_dir: Path, duration_min: float) -> None:
+def graph_energy(out_dir: Path, duration_min: float, power_stats: PowerStats) -> None:
     fig, (ax_current, ax_power) = plt.subplots(1, 2, figsize=(13.33, 7.5), dpi=160)
     fig.patch.set_facecolor("white")
     fig.suptitle("Measured Energy Consumption", x=0.06, y=0.96, ha="left", fontsize=22, fontweight="bold", color=COLORS["dark"])
     fig.text(0.06, 0.905, "INA219 measurements from Node A and Node B, including sensors, LoRa, and LEDs.", ha="left", fontsize=11, color=COLORS["muted"])
 
-    current_values = [NODE_A_MA, NODE_B_MA, NODE_A_MA + NODE_B_MA]
-    power_values = [NODE_A_MW, NODE_B_MW, NODE_A_MW + NODE_B_MW]
+    current_values = [power_stats.node_a_current_ma, power_stats.node_b_current_ma, power_stats.total_current_ma]
+    power_values = [power_stats.node_a_power_mw, power_stats.node_b_power_mw, power_stats.total_power_mw]
     labels = ["Node A", "Node B", "Total"]
 
     ax_current.bar(labels, current_values, color=[COLORS["blue"], COLORS["green"], COLORS["dark"]], width=0.55)
@@ -334,8 +437,8 @@ def graph_energy(out_dir: Path, duration_min: float) -> None:
     ax_power.set_ylabel("mW")
     annotate_bars(ax_power, power_values, suffix=" mW", precision=1)
 
-    used_mah = (NODE_A_MA + NODE_B_MA) * (duration_min / 60.0)
-    runtime_h = (BATTERY_MAH * BATTERY_EFFICIENCY) / (NODE_A_MA + NODE_B_MA)
+    used_mah = power_stats.total_current_ma * (duration_min / 60.0)
+    runtime_h = (BATTERY_MAH * BATTERY_EFFICIENCY) / power_stats.total_current_ma
     fig.text(
         0.06,
         0.075,
@@ -349,6 +452,48 @@ def graph_energy(out_dir: Path, duration_min: float) -> None:
         ax.spines[["top", "right", "left"]].set_visible(False)
         ax.tick_params(axis="x", labelsize=12)
     finish(fig, out_dir / "03_energy_consumption.png")
+
+
+def graph_power_timeseries(out_dir: Path, power_stats: PowerStats) -> None:
+    fig, ax = setup_figure(
+        "INA219 Power Consumption Over Time",
+        "30-second samples while ultrasonic sensors were active, LoRa was running, and Node B traffic LEDs were on.",
+    )
+    samples = power_stats.samples
+    times_min = [sample.time_s / 60.0 for sample in samples]
+    node_a_power = [sample.node_a_power_mw for sample in samples]
+    node_b_power = [sample.node_b_power_mw for sample in samples]
+    total_power = [sample.total_power_mw for sample in samples]
+
+    ax.plot(times_min, node_a_power, color=COLORS["blue"], linewidth=2.5, marker="o", label="Node A power")
+    ax.plot(times_min, node_b_power, color=COLORS["green"], linewidth=2.5, marker="o", label="Node B power")
+    ax.plot(times_min, total_power, color=COLORS["dark"], linewidth=3.0, linestyle="--", marker="o", label="Total power")
+    ax.axvline(power_stats.peak_time_s / 60.0, color=COLORS["orange"], linewidth=2, alpha=0.75)
+    ax.annotate(
+        f"Peak total: {power_stats.peak_total_power_mw:.0f} mW\nat {power_stats.peak_time_s:.0f}s",
+        xy=(power_stats.peak_time_s / 60.0, power_stats.peak_total_power_mw),
+        xytext=(power_stats.peak_time_s / 60.0 + 0.35, power_stats.peak_total_power_mw - 180),
+        arrowprops=dict(arrowstyle="->", color=COLORS["orange"], linewidth=1.8),
+        fontsize=12,
+        color=COLORS["dark"],
+        bbox=dict(boxstyle="round,pad=0.35", facecolor="#FFF7ED", edgecolor=COLORS["orange"]),
+    )
+    ax.set_xlabel("Measurement time (minutes)")
+    ax.set_ylabel("Power (mW)")
+    ax.grid(color="#E5E7EB")
+    ax.set_axisbelow(True)
+    ax.legend(frameon=False, loc="upper left")
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.subplots_adjust(bottom=0.22)
+    fig.text(
+        0.06,
+        0.045,
+        "Interpretation: Node B is consistently higher because it receives LoRa continuously and drives the traffic LEDs. "
+        "Short peaks happen when ultrasonic polling, LoRa activity, and LED load overlap.",
+        fontsize=10.5,
+        color=COLORS["dark"],
+    )
+    finish(fig, out_dir / "09_power_consumption_timeseries.png")
 
 
 def graph_lora(metrics: Metrics, out_dir: Path) -> None:
@@ -511,9 +656,9 @@ def graph_digital_twin_pipeline(out_dir: Path) -> None:
     finish(fig, out_dir / "08_digital_twin_pipeline.png")
 
 
-def write_summary(metrics: Metrics, out_dir: Path) -> None:
-    used_mah = (NODE_A_MA + NODE_B_MA) * (metrics.duration_min / 60.0)
-    runtime_h = (BATTERY_MAH * BATTERY_EFFICIENCY) / (NODE_A_MA + NODE_B_MA)
+def write_summary(metrics: Metrics, power_stats: PowerStats, out_dir: Path) -> None:
+    used_mah = power_stats.total_current_ma * (metrics.duration_min / 60.0)
+    runtime_h = (BATTERY_MAH * BATTERY_EFFICIENCY) / power_stats.total_current_ma
     lines = [
         "Wait Less final presentation metrics",
         "------------------------------------",
@@ -524,12 +669,18 @@ def write_summary(metrics: Metrics, out_dir: Path) -> None:
         f"False positive rate: {metrics.false_positive_rate:.1f}%",
         f"False negative rate: {metrics.false_negative_rate:.1f}%",
         f"LoRa stale rate: {metrics.lora_stale_rate:.1f}%",
-        f"Node A average current: {NODE_A_MA:.1f} mA",
-        f"Node B average current: {NODE_B_MA:.1f} mA",
-        f"Total average current: {NODE_A_MA + NODE_B_MA:.1f} mA",
+        f"Node A average current: {power_stats.node_a_current_ma:.1f} mA",
+        f"Node B average current: {power_stats.node_b_current_ma:.1f} mA",
+        f"Total average current: {power_stats.total_current_ma:.1f} mA",
+        f"Node A power range: {power_stats.node_a_power_min:.1f}-{power_stats.node_a_power_max:.1f} mW",
+        f"Node B power range: {power_stats.node_b_power_min:.1f}-{power_stats.node_b_power_max:.1f} mW",
+        f"Peak total power: {power_stats.peak_total_power_mw:.1f} mW at {power_stats.peak_time_s:.0f} s",
         f"Road run energy: {used_mah:.1f} mAh",
         f"Estimated 10000 mAh runtime: {runtime_h:.1f} h",
         f"Digital-twin waiting-pressure reduction: {metrics.estimated_wait_reduction:.1f}%",
+        "",
+        "Power graph wording:",
+        "The time-series graph uses 30-second INA219 samples. The average changed slightly from the earlier summary because this file includes every sample used for the graph. Peaks occur when ultrasonic polling, LoRa activity, and Node B LED load overlap.",
         "",
         "Time-saving graph wording:",
         "Digital-twin estimate using real road demand. It compares the same CSV demand under fixed-time control and adaptive control.",
@@ -537,30 +688,33 @@ def write_summary(metrics: Metrics, out_dir: Path) -> None:
     (out_dir / "presentation_metrics.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def generate(csv_path: Path, out_dir: Path) -> Metrics:
+def generate(csv_path: Path, out_dir: Path, power_csv: Path) -> Metrics:
     rows = load_rows(csv_path)
     metrics = collect_metrics(rows)
+    power_stats = power_stats_from_samples(load_power_samples(power_csv))
     out_dir.mkdir(parents=True, exist_ok=True)
 
     graph_confusion_matrix(metrics, out_dir)
     graph_detection_rates(metrics, out_dir)
-    graph_energy(out_dir, metrics.duration_min)
+    graph_energy(out_dir, metrics.duration_min, power_stats)
     graph_lora(metrics, out_dir)
     graph_traffic_demand(rows, out_dir)
     graph_activation_counts(rows, out_dir)
     graph_time_saving(metrics, out_dir)
     graph_digital_twin_pipeline(out_dir)
-    write_summary(metrics, out_dir)
+    graph_power_timeseries(out_dir, power_stats)
+    write_summary(metrics, power_stats, out_dir)
     return metrics
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate final presentation graph PNGs.")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
+    parser.add_argument("--power-csv", type=Path, default=DEFAULT_POWER_CSV)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args()
 
-    metrics = generate(args.csv, args.out_dir)
+    metrics = generate(args.csv, args.out_dir, args.power_csv)
     print("Generated final presentation graphs")
     print("-----------------------------------")
     print(f"Output directory: {args.out_dir}")

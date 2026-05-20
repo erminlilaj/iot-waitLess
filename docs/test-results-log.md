@@ -39,7 +39,7 @@ For each executed test:
 | HW-06 | 2026-05-20 | Emergency behavior | ambulance override on real setup | emergency side gets priority after yellow | tested previously on the real setup; emergency override worked and the controller used yellow before changing priority | PASS |
 | HW-07 | 2026-05-19 | Real road sensor data | log Node A and Node B at a real road using `tools/road_data_logger.py` | CSV contains real sensor readings and manual ground-truth labels | `data\data_readed\road_26-05-19_crossroads.csv` contains `2160` ESP32 samples from an `18.0 min` road run | PASS |
 | HW-08 | 2026-05-20 | Sensor false positives / false negatives | summarize labeled road CSV with `tools/road_data_summary.py` | report includes TP, TN, FP, FN, accuracy, false-positive rate, and false-negative rate | TP/TN/FP/FN `1269/817/59/15`, accuracy `96.6%`, FP `6.7%`, FN `1.2%` | PASS |
-| HW-09 | 2026-05-20 | Energy measurement | measure Node A and Node B current with INA219, then regenerate the evidence report | report includes measured average current, energy used, and estimated battery life | Node A `121.4 mA` avg (`97.8-148.6 mA`), Node B `174.8 mA` avg (`132.5-219.3 mA`), total `296.2 mA`; evidence report regenerated with measured values | PASS |
+| HW-09 | 2026-05-20 | Energy measurement | measure Node A and Node B current with INA219, then regenerate the evidence report | report includes measured average current, energy used, and estimated battery life | detailed 30-second samples: Node A `123.0 mA` avg (`104.2-147.8 mA`), Node B `174.8 mA` avg (`142.5-213.6 mA`), total `297.9 mA`; evidence report regenerated with measured values | PASS |
 | HW-10 | 2026-05-20 | Threshold tuning | analyze labelled road CSV with `tools/sensor_threshold_analysis.py` | report recommends far/near thresholds based on FP/FN tradeoff | threshold-analysis file generated; final road run used fixed `100/100 cm` thresholds and achieved `96.6%` accuracy | PASS |
 | HW-11 | 2026-05-20 | Node A near sensor | distance / occupancy detection | object inside threshold shows `OCC` | CSV check showed near sensor responding from about `30.4cm/OCC` down to `3.6cm/OCC` | PASS |
 | HW-12 | 2026-05-20 | Node A far sensor | wiring fix and distance / occupancy detection | object inside threshold shows `OCC` | after rewiring, final check showed far sensor reading about `3 cm/OCC` at `100 cm` threshold | PASS |
@@ -174,25 +174,26 @@ Measured on 2026-05-20 by the prototype test team:
 
 ```text
 Node A:
-average current = 121.4 mA
-current range = 97.8-148.6 mA
+average current = 123.0 mA
+current range = 104.2-147.8 mA
 average bus voltage = 5.02 V
-average power = 609.4 mW
+average power = 617.6 mW
 role = 2 ultrasonic sensors + LoRa transmit
 
 Node B:
 average current = 174.8 mA
-current range = 132.5-219.3 mA
+current range = 142.5-213.6 mA
 average bus voltage = 5.01 V
-average power = 875.7 mW
+average power = 875.9 mW
 role = 2 ultrasonic sensors + LoRa receive + traffic LEDs
 
 Two-node total:
-average current = 296.2 mA
-average power = 1485.1 mW
+average current = 297.9 mA
+average power = 1493.5 mW
+peak power = 1812.0 mW at 210 s
 ```
 
-The final evidence dashboard/report was regenerated with these measured current values.
+The final evidence dashboard/report and presentation graphs were regenerated with the detailed 30-second INA219 samples. The peak occurs when ultrasonic polling, LoRa activity, and Node B LED load overlap.
 
 ## Notes And Fixes
 

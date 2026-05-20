@@ -23,7 +23,7 @@ Do not say the road deployment already proved a real traffic delay reduction. Th
 | 5 | Road Data Collection | road video + laptop live log screenshot | Real crossroad CSV with truth labels: vehicle / empty |
 | 6 | Sensor Reliability | `01_detection_confusion_matrix.png` + `02_detection_quality_rates.png` | 96.6% accuracy; FP/FN measured from labels, not guessed |
 | 7 | Robustness Improvements | log screenshot with `filter` and `health` | Per-sensor thresholds, median3, debounce2, sensor-health diagnostics |
-| 8 | LoRa And Energy | `03_energy_consumption.png` + `04_lora_reliability.png` | Two-node link freshness and measured INA219 consumption |
+| 8 | LoRa And Energy | `03_energy_consumption.png` + `04_lora_reliability.png` + `09_power_consumption_timeseries.png` | Two-node link freshness and measured INA219 consumption |
 | 9 | Digital Twin Replay | simulator video + `05_traffic_demand_over_time.png` | Simulator cars are driven by real queue pressure from the road CSV |
 | 10 | Waiting-Time Estimate | `07_time_saving_estimate.png` | Real demand replay estimates lower waiting pressure versus fixed-time control |
 | 11 | Evidence Package | dashboard screenshot + graph thumbnails | CSV, dashboard, report, firmware, simulator, photos, videos |
@@ -72,7 +72,7 @@ Make one polished video of about 60-90 seconds:
 Generate all graph PNGs with:
 
 ```powershell
-python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --out-dir data\data_readed\presentation_graphs
+python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --power-csv data\road_sessions\ina219_power_timeseries_2026-05-20.csv --out-dir data\data_readed\presentation_graphs
 ```
 
 | File | Use |
@@ -85,6 +85,7 @@ python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_c
 | `data\data_readed\presentation_graphs\06_detected_vehicle_activations.png` | Vehicle activations by node/sensor |
 | `data\data_readed\presentation_graphs\07_time_saving_estimate.png` | Fixed-time vs adaptive digital-twin estimate |
 | `data\data_readed\presentation_graphs\08_digital_twin_pipeline.png` | Real data to simulator explanation |
+| `data\data_readed\presentation_graphs\09_power_consumption_timeseries.png` | 30-second INA219 power-consumption trace |
 
 ## Key Numbers To Put On Slides
 
@@ -95,12 +96,20 @@ python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_c
 - False positive rate: `6.7%`
 - False negative rate: `1.2%`
 - LoRa stale rows: `65 / 2160 = 3.0%`
-- Node A current: `121.4 mA`
+- Node A current: `123.0 mA`
 - Node B current: `174.8 mA`
-- Total current: `296.2 mA`
-- Road run energy: `88.8 mAh`
-- Estimated 10000 mAh runtime: `25.3 h`
+- Total current: `297.9 mA`
+- Road run energy: `89.3 mAh`
+- Estimated 10000 mAh runtime: `25.2 h`
+- Peak total power: `1812.0 mW at 210 s`
 - Digital-twin waiting-pressure reduction estimate: `31.6%`
+
+Power graph explanation:
+
+- The graph uses 21 INA219 samples taken every 30 seconds.
+- The small change from the earlier Node A average (`121.4 mA` -> `123.0 mA`) is because the graph recalculates the average from the exact plotted samples.
+- Node B stays higher because it is the receiver/controller node and drives the traffic LEDs.
+- The largest peak at `210 s` happened while both nodes were active, with ultrasonic polling and LoRa running, and Node B also carrying the LED load.
 
 ## Final Demo Flow
 
