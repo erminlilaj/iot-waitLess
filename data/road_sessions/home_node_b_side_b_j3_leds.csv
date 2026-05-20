@@ -1,0 +1,36 @@
+timestamp_iso,elapsed_s,node,source,far_threshold_cm,near_threshold_cm,far_cm,far_occupied,near_cm,near_occupied,queue,local_queue,remote_queue,incoming_count,passed_count,remote_source,remote_stale,green_side,phase,emergency,priority_side,lights_a,lights_b,tx_backend,payload,rssi_dbm,snr_db,truth_any_vehicle,truth_far,truth_near,truth_note,event_label,raw_line
+2026-05-19T15:52:55,1.56,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Node B ready.
+2026-05-19T15:52:55,1.56,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Standalone bench mode is enabled.
+2026-05-19T15:52:55,1.56,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Node B far sensor trig/echo: 4/5
+2026-05-19T15:52:55,1.57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Node B near sensor trig/echo: 6/7
+2026-05-19T15:52:55,1.57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Node B side-A LEDs R/Y/G: 33/34/35
+2026-05-19T15:52:55,1.57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Node B side-B LEDs R/Y/G: 38/39/40
+2026-05-19T15:52:55,1.61,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,[LoRa] backend: RadioLib SX1262
+2026-05-19T15:52:55,1.62,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,[LoRa] freq=868.0 MHz bw=125.0 kHz sf=7 cr=5 sync=0x12 power=14 dBm
+2026-05-19T15:52:55,1.62,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Bench commands:
+2026-05-19T15:52:55,1.62,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,help
+2026-05-19T15:52:55,1.62,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,remote_clear
+2026-05-19T15:52:55,1.62,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,remote_queue <queue>
+2026-05-19T15:52:55,1.63,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,remote_state <far> <near> <queue>
+2026-05-19T15:52:55,1.63,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,thresholds
+2026-05-19T15:52:55,1.63,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,set_thresholds <far_cm> <near_cm>
+2026-05-19T15:52:55,1.63,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,set_far_threshold <cm>
+2026-05-19T15:52:55,1.64,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,set_near_threshold <cm>
+2026-05-19T15:52:55,1.64,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,remote_ambulance_on
+2026-05-19T15:52:55,1.64,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,remote_ambulance_off
+2026-05-19T15:52:55,1.64,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,local_ambulance_on
+2026-05-19T15:52:55,1.64,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,local_ambulance_off
+2026-05-19T15:52:55,1.65,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"A,1,0,4,2,2,0,12345   (raw telemetry payload)"
+2026-05-19T15:52:55,1.65,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,log quiet
+2026-05-19T15:52:55,1.65,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,log summary
+2026-05-19T15:52:55,1.65,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,log verbose
+2026-05-19T15:52:55,1.65,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,status
+2026-05-19T15:52:55,1.65,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,report
+2026-05-19T15:52:55,1.66,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Log mode set to SUMMARY
+2026-05-19T15:52:55,1.68,B,LORA_STALE,100.0,100.0,57.7,1,25.7,1,,1,0,,,LORA_STALE,ON,A,GREEN,OFF,A,GREEN,RED,,,,,,,,,,B STATUS | far=57.7cm/OCC | near=25.7cm/OCC | thresholds=100.0/100.0 | localQ=1 | remoteQ=0 | source=LORA_STALE | stale=ON | green=A | phase=GREEN | emergency=OFF | priority=A | lights=A:GREEN B:RED
+2026-05-19T15:52:56,2.68,B,LORA_STALE,100.0,100.0,58.2,1,25.6,1,,1,0,,,LORA_STALE,ON,A,GREEN,OFF,A,GREEN,RED,,,,,,,,,,B STATUS | far=58.2cm/OCC | near=25.6cm/OCC | thresholds=100.0/100.0 | localQ=1 | remoteQ=0 | source=LORA_STALE | stale=ON | green=A | phase=GREEN | emergency=OFF | priority=A | lights=A:GREEN B:RED
+2026-05-19T15:52:57,3.68,B,LORA_STALE,100.0,100.0,58.2,1,25.6,1,,1,0,,,LORA_STALE,ON,A,GREEN,OFF,A,GREEN,RED,,,,,,,,,,B STATUS | far=58.2cm/OCC | near=25.6cm/OCC | thresholds=100.0/100.0 | localQ=1 | remoteQ=0 | source=LORA_STALE | stale=ON | green=A | phase=GREEN | emergency=OFF | priority=A | lights=A:GREEN B:RED
+2026-05-19T15:52:58,4.68,B,LORA_STALE,100.0,100.0,58.2,1,25.6,1,,1,0,,,LORA_STALE,ON,A,GREEN,OFF,A,GREEN,RED,,,,,,,,,,B STATUS | far=58.2cm/OCC | near=25.6cm/OCC | thresholds=100.0/100.0 | localQ=1 | remoteQ=0 | source=LORA_STALE | stale=ON | green=A | phase=GREEN | emergency=OFF | priority=A | lights=A:GREEN B:RED
+2026-05-19T15:52:59,5.68,B,LORA_STALE,100.0,100.0,58.6,1,25.6,1,,1,0,,,LORA_STALE,ON,A,YELLOW,OFF,A,YELLOW,RED,,,,,,,,,,B STATUS | far=58.6cm/OCC | near=25.6cm/OCC | thresholds=100.0/100.0 | localQ=1 | remoteQ=0 | source=LORA_STALE | stale=ON | green=A | phase=YELLOW | emergency=OFF | priority=A | lights=A:YELLOW B:RED
+2026-05-19T15:53:00,6.68,B,LORA_STALE,100.0,100.0,58.7,1,25.6,1,,1,0,,,LORA_STALE,ON,A,YELLOW,OFF,A,YELLOW,RED,,,,,,,,,,B STATUS | far=58.7cm/OCC | near=25.6cm/OCC | thresholds=100.0/100.0 | localQ=1 | remoteQ=0 | source=LORA_STALE | stale=ON | green=A | phase=YELLOW | emergency=OFF | priority=A | lights=A:YELLOW B:RED
+2026-05-19T15:53:01,7.68,B,LORA_STALE,100.0,100.0,58.2,1,25.6,1,,1,0,,,LORA_STALE,ON,B,GREEN,OFF,B,RED,GREEN,,,,,,,,,,B STATUS | far=58.2cm/OCC | near=25.6cm/OCC | thresholds=100.0/100.0 | localQ=1 | remoteQ=0 | source=LORA_STALE | stale=ON | green=B | phase=GREEN | emergency=OFF | priority=B | lights=A:RED B:GREEN

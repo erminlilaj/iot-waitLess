@@ -26,7 +26,7 @@ For `Node B`, wire:
 - far ultrasonic sensor: `TRIG GPIO4 = J3-15`, `ECHO GPIO5 = J3-16`
 - near ultrasonic sensor: `TRIG GPIO6 = J3-17`, `ECHO GPIO7 = J3-18`
 - side A LEDs: `R/Y/G = GPIO33/GPIO34/GPIO35 = J2-12/J2-11/J2-10`
-- side B LEDs: `R/Y/G = GPIO36/GPIO47/GPIO48 = J2-9/J2-13/J2-14`
+- side B LEDs: `R/Y/G = GPIO38/GPIO39/GPIO40 = J3-11/J3-10/J3-9`
 
 Important:
 
@@ -64,6 +64,21 @@ These commands simulate the remote side `A`:
 - `remote_state 1 0 2`
   Sets remote `farOccupied = 1`, `nearOccupied = 0`, `queue = 2`.
 
+- `thresholds`
+  Prints the current local far and near distance thresholds plus the active sensor filter.
+
+- `filter`
+  Prints the active robustness filter. The current implementation is median3 distance filtering plus debounce2 occupancy.
+
+- `health`
+  Prints far/near sensor health. Repeated invalid ultrasonic readings become `WARN` or `FAIL`.
+
+- `set_thresholds <far_cm> <near_cm>`
+  Updates both local occupancy thresholds without reflashing.
+
+- `set_far_threshold <cm>` / `set_near_threshold <cm>`
+  Updates only one local threshold.
+
 - `remote_ambulance_on`
   Enables ambulance priority for side `A`.
 
@@ -93,6 +108,7 @@ These commands simulate the remote side `A`:
 With `log summary`, every second the serial monitor prints one compact controller line with:
 
 - local far and near distances in centimeters
+- current far/near thresholds
 - local occupancy state
 - local queue estimate
 - remote queue estimate

@@ -21,6 +21,11 @@ struct SpiPins {
   uint8_t mosi;
 };
 
+struct I2cPins {
+  uint8_t sda;
+  uint8_t scl;
+};
+
 struct LoRaRadioPins {
   uint8_t cs;
   uint8_t irq;
@@ -42,6 +47,13 @@ constexpr LoRaRadioPins kLoRaRadio = {
     14,
     12,
     13,
+};
+
+// Optional external INA219 current sensor. These pins are free in the current
+// prototype wiring and are exposed on the J3 header.
+constexpr I2cPins kIna219I2c = {
+    41,
+    42,
 };
 
 }  // namespace heltec_v3
@@ -82,9 +94,9 @@ constexpr TrafficLightPins kSideALights = {
 };
 
 constexpr TrafficLightPins kSideBLights = {
-    36,
-    47,
-    48,
+    38,
+    39,
+    40,
 };
 
 }  // namespace node_b

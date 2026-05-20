@@ -1,0 +1,22 @@
+Wait Less Road Data Summary
+---------------------------
+Parsed ESP32 samples: 2160
+First sample: 2026-05-19 18:02:10
+Last sample: 2026-05-19 18:20:09
+
+Detection quality from labeled samples
+Scored samples: 2160
+True positives: 1269
+True negatives: 817
+False positives: 59
+False negatives: 15
+Accuracy: 96.6%
+False positive rate: 6.7%
+False negative rate: 1.2%
+
+Distance sanity check
+Average far distance: 519.9 cm
+Average near distance: 527.7 cm
+
+Next analysis command
+python tools\sensor_threshold_analysis.py --csv <this_csv> --sensor both

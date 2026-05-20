@@ -43,9 +43,34 @@ Side B sensing + controller node:
 | Side A red LED | `33` | `J2-12` | tested exposed output pin |
 | Side A yellow LED | `34` | `J2-11` | tested exposed output pin |
 | Side A green LED | `35` | `J2-10` | tested exposed output pin |
-| Side B red LED | `36` | `J2-9` | tested exposed output pin |
-| Side B yellow LED | `47` | `J2-13` | tested exposed output pin |
-| Side B green LED | `48` | `J2-14` | tested exposed output pin |
+| Side B red LED | `38` | `J3-11` | tested exposed output pin |
+| Side B yellow LED | `39` | `J3-10` | tested exposed output pin |
+| Side B green LED | `40` | `J3-9` | tested exposed output pin |
+
+## Optional INA219 Energy Measurement Wiring
+
+Use this only when measuring current consumption. It does not change the ultrasonic or LED wiring.
+
+| INA219 Function | ESP32 GPIO / Header | Note |
+| --- | --- | --- |
+| VCC | `3V3` / `J3-2` or `J3-3` | use `3.3V` so I2C logic is ESP32-safe |
+| GND | `GND` / `J3-1` or `J2-1` | common ground with the measured node |
+| SDA | `GPIO41` / `J3-8` | optional INA219 I2C data |
+| SCL | `GPIO42` / `J3-7` | optional INA219 I2C clock |
+| VIN+ | power-source positive | high-side current input |
+| VIN- | node `5V` input | output from INA219 to the measured node |
+
+Current path:
+
+```text
+power bank +5V  -> INA219 VIN+
+INA219 VIN-    -> measured node 5V
+power bank GND -> measured node GND and INA219 GND
+```
+
+Do not connect `VIN+` and `VIN-` across `5V` and `GND`; the INA219 must be in series with the positive supply line. If the current is negative, swap `VIN+` and `VIN-`.
+
+If the board is also connected to a normal USB cable, USB `5V` may power the board around the INA219. For a valid measurement, put the INA219 in series with the actual `5V` supply path or use a data-only USB connection while the `5V` supply passes through INA219.
 
 ## Source In Code
 
@@ -80,11 +105,13 @@ From [esp_datasheet.png](c:/Users/Lenovo/Desktop/Sperenza/Spring_2026/iot/group_
 - `GPIO33` is on `J2-12`
 - `GPIO34` is on `J2-11`
 - `GPIO35` is on `J2-10`
-- `GPIO36` is on `J2-9`
-- `GPIO47` is on `J2-13`
-- `GPIO48` is on `J2-14`
+- `GPIO38` is on `J3-11`
+- `GPIO39` is on `J3-10`
+- `GPIO40` is on `J3-9`
+- `GPIO41` is on `J3-8`
+- `GPIO42` is on `J3-7`
 
-This means the current ultrasonic sensor mapping is physically accessible on `J3`, and the current tested LED mapping is physically accessible on `J2`.
+This means the current ultrasonic sensor mapping is physically accessible on `J3`, the side-A LED mapping is physically accessible on `J2`, and the side-B LED mapping is physically accessible on `J3`.
 
 ## Bench-Test Notes
 
@@ -94,6 +121,7 @@ This means the current ultrasonic sensor mapping is physically accessible on `J3
 - For each `HC-SR04 ECHO` line on `GPIO5` and `GPIO7`, use a voltage divider or a proper logic-level shifter if the sensor outputs `5V`.
 - `TRIG` does not need a voltage divider because it is driven by the ESP32.
 - The current firmware already maps LEDs to exposed `J2` header pins in [HardwareMap.h](c:/Users/Lenovo/Desktop/Sperenza/Spring_2026/iot/group_project/firmware/shared/HardwareMap.h).
+- The firmware can optionally print INA219 power readings when an INA219 is connected on `GPIO41/GPIO42`.
 
 ## What This Step Solves
 

@@ -1,0 +1,18 @@
+Wait Less final presentation metrics
+------------------------------------
+Road CSV samples: 2160
+Road CSV duration: 18.0 min
+TP/TN/FP/FN: 1269/817/59/15
+Accuracy: 96.6%
+False positive rate: 6.7%
+False negative rate: 1.2%
+LoRa stale rate: 3.0%
+Node A average current: 121.4 mA
+Node B average current: 174.8 mA
+Total average current: 296.2 mA
+Road run energy: 88.8 mAh
+Estimated 10000 mAh runtime: 25.3 h
+Digital-twin waiting-pressure reduction: 31.6%
+
+Time-saving graph wording:
+Digital-twin estimate using real road demand. It compares the same CSV demand under fixed-time control and adaptive control.

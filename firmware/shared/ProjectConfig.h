@@ -10,6 +10,13 @@ constexpr uint32_t kRemoteTelemetryTimeoutMs = 3000;
 
 constexpr float kFarThresholdCm = 100.0f;
 constexpr float kNearThresholdCm = 100.0f;
+constexpr uint8_t kUltrasonicMedianSamples = 3;
+constexpr uint8_t kOccupancyDebounceSamples = 2;
+constexpr uint16_t kSensorHealthWarnInvalidSamples = 5;
+constexpr uint16_t kSensorHealthFailInvalidSamples = 15;
+
+constexpr uint8_t kIna219Address = 0x40;
+constexpr float kIna219ShuntOhms = 0.1f;
 
 constexpr uint32_t kMinGreenMs = 5000;
 constexpr uint32_t kMaxGreenMs = 20000;

@@ -44,6 +44,21 @@ For `Node A`, the planned sensor pins are:
 - `reset_counts`
   Resets the queue estimator counters.
 
+- `thresholds`
+  Prints the current far and near distance thresholds plus the active sensor filter.
+
+- `filter`
+  Prints the active robustness filter. The current implementation is median3 distance filtering plus debounce2 occupancy.
+
+- `health`
+  Prints far/near sensor health. Repeated invalid ultrasonic readings become `WARN` or `FAIL`.
+
+- `set_thresholds <far_cm> <near_cm>`
+  Updates both occupancy thresholds without reflashing.
+
+- `set_far_threshold <cm>` / `set_near_threshold <cm>`
+  Updates only one threshold.
+
 - `ambulance_on`
   Enables ambulance priority for side `A`.
 
@@ -86,6 +101,7 @@ This sequence simulates one car moving through side `A`:
 With `log summary`, every telemetry period Node A prints one compact status line with:
 
 - whether the source is `SENSORS` or `SERIAL_EMU`
+- the current far/near thresholds
 - far and near occupancy state
 - `incomingCount`
 - `passedCount`

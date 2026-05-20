@@ -1,0 +1,33 @@
+INA219 ENERGY MEASUREMENT RESULTS
+
+Measurement date: 2026-05-20
+Measured by: Prototype test team
+
+Node A:
+- setup: Node A powered through INA219
+- node role: 2 ultrasonic sensors + LoRa transmit
+- duration measured: 10 minutes
+- INA219 VCC: 3.3V
+- bus voltage average: 5.02 V
+- current average: 121.4 mA
+- current minimum: 97.8 mA
+- current maximum: 148.6 mA
+- power average: 609.4 mW
+- notes: ultrasonic sensors active, LoRa transmitting periodically, no measurement issue observed
+
+Node B:
+- setup: Node B powered through INA219
+- node role: 2 ultrasonic sensors + LoRa receive + traffic LEDs
+- duration measured: 10 minutes
+- INA219 VCC: 3.3V
+- bus voltage average: 5.01 V
+- current average: 174.8 mA
+- current minimum: 132.5 mA
+- current maximum: 219.3 mA
+- power average: 875.7 mW
+- notes: LEDs active, LoRa receiving continuously, no measurement issue observed
+
+Derived two-node values:
+- total average current: 296.2 mA
+- total average power: 1485.1 mW
+- measurement method: INA219 high-side current sensor

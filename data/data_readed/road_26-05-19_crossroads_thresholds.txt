@@ -1,0 +1,37 @@
+FAR sensor threshold analysis
+------------------------------------
+Labelled samples with usable distance: 1124
+Vehicle distance range: 32.9 - 195.5 cm
+Empty distance range: 52.5 - 274.9 cm
+
+Recommended threshold:
+ 195.0 cm | TP/TN/FP/FN 1028/  34/  61/   1 | acc  94.5% | FP  64.2% | FN   0.1%
+
+Top candidates:
+ 195.0 cm | TP/TN/FP/FN 1028/  34/  61/   1 | acc  94.5% | FP  64.2% | FN   0.1%
+ 200.0 cm | TP/TN/FP/FN 1029/  32/  63/   0 | acc  94.4% | FP  66.3% | FN   0.0%
+ 190.0 cm | TP/TN/FP/FN 1024/  36/  59/   5 | acc  94.3% | FP  62.1% | FN   0.5%
+ 205.0 cm | TP/TN/FP/FN 1029/  31/  64/   0 | acc  94.3% | FP  67.4% | FN   0.0%
+ 180.0 cm | TP/TN/FP/FN 1020/  36/  59/   9 | acc  94.0% | FP  62.1% | FN   0.9%
+ 185.0 cm | TP/TN/FP/FN 1020/  36/  59/   9 | acc  94.0% | FP  62.1% | FN   0.9%
+ 175.0 cm | TP/TN/FP/FN 1017/  37/  58/  12 | acc  93.8% | FP  61.1% | FN   1.2%
+ 210.0 cm | TP/TN/FP/FN 1029/  25/  70/   0 | acc  93.8% | FP  73.7% | FN   0.0%
+
+NEAR sensor threshold analysis
+------------------------------------
+Labelled samples with usable distance: 1084
+Vehicle distance range: 16.8 - 290.6 cm
+Empty distance range: 70.2 - 280.1 cm
+
+Recommended threshold:
+ 200.0 cm | TP/TN/FP/FN 1043/  23/  12/   6 | acc  98.3% | FP  34.3% | FN   0.6%
+
+Top candidates:
+ 200.0 cm | TP/TN/FP/FN 1043/  23/  12/   6 | acc  98.3% | FP  34.3% | FN   0.6%
+ 195.0 cm | TP/TN/FP/FN 1040/  25/  10/   9 | acc  98.2% | FP  28.6% | FN   0.9%
+ 205.0 cm | TP/TN/FP/FN 1043/  22/  13/   6 | acc  98.2% | FP  37.1% | FN   0.6%
+ 210.0 cm | TP/TN/FP/FN 1043/  19/  16/   6 | acc  98.0% | FP  45.7% | FN   0.6%
+ 215.0 cm | TP/TN/FP/FN 1043/  19/  16/   6 | acc  98.0% | FP  45.7% | FN   0.6%
+ 220.0 cm | TP/TN/FP/FN 1043/  19/  16/   6 | acc  98.0% | FP  45.7% | FN   0.6%
+ 225.0 cm | TP/TN/FP/FN 1043/  19/  16/   6 | acc  98.0% | FP  45.7% | FN   0.6%
+ 230.0 cm | TP/TN/FP/FN 1043/  17/  18/   6 | acc  97.8% | FP  51.4% | FN   0.6%

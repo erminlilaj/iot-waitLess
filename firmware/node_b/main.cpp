@@ -7,6 +7,7 @@
 #include "NodeMessaging.h"
 #include "SensorSupport.h"
 #include "shared/HardwareMap.h"
+#include "shared/Ina219Support.h"
 #include "TrafficSensing.h"
 #include "shared/ProjectConfig.h"
 
@@ -32,6 +33,8 @@ SideTelemetry remoteTelemetry;
 bool localEmergencyRequested = false;
 bool remoteTelemetryInjected = false;
 LogMode logMode = LogMode::Summary;
+float farThresholdCm = config::kFarThresholdCm;
+float nearThresholdCm = config::kNearThresholdCm;
 uint32_t lastLoopMs = 0;
 uint32_t lastStatusMs = 0;
 uint32_t lastRemoteRxMs = 0;
@@ -48,6 +51,11 @@ float lastRssiDbm = 0.0f;
 float lastSnrDb = 0.0f;
 bool lastRxWasRadio = false;
 bool remoteTelemetryStale = false;
+Ina219Reading lastPowerReading;
+OccupancyDebouncer farDebouncer;
+OccupancyDebouncer nearDebouncer;
+SensorHealthTracker farHealth;
+SensorHealthTracker nearHealth;
 
 const char* lightStateLabel(bool red, bool yellow, bool green);
 
@@ -177,12 +185,142 @@ void printBenchHelp() {
   Serial.println("  remote_clear");
   Serial.println("  remote_queue <queue>");
   Serial.println("  remote_state <far> <near> <queue>");
+  Serial.println("  thresholds");
+  Serial.println("  set_thresholds <far_cm> <near_cm>");
+  Serial.println("  set_far_threshold <cm>");
+  Serial.println("  set_near_threshold <cm>");
+  Serial.println("  filter");
+  Serial.println("  health");
+  Serial.println("  power");
   Serial.println("  remote_ambulance_on");
   Serial.println("  remote_ambulance_off");
   Serial.println("  local_ambulance_on");
   Serial.println("  local_ambulance_off");
   Serial.println("  A,1,0,4,2,2,0,12345   (raw telemetry payload)");
   printLogModeCommands(Serial);
+}
+
+bool isValidThreshold(float thresholdCm) {
+  return thresholdCm >= 5.0f && thresholdCm <= 400.0f;
+}
+
+void printThresholds(Stream& out) {
+  out.print("far_threshold_cm: ");
+  out.println(farThresholdCm, 1);
+  out.print("near_threshold_cm: ");
+  out.println(nearThresholdCm, 1);
+}
+
+void printSensorFilterValue(Stream& out) {
+  out.print("median");
+  out.print(static_cast<int>(config::kUltrasonicMedianSamples));
+  out.print("_debounce");
+  out.print(static_cast<int>(config::kOccupancyDebounceSamples));
+}
+
+void printSensorFilter(Stream& out) {
+  out.print("sensor_filter: ");
+  printSensorFilterValue(out);
+  out.println();
+}
+
+void printSensorHealthValue(Stream& out) {
+  out.print("F:");
+  out.print(farHealth.status(config::kSensorHealthWarnInvalidSamples, config::kSensorHealthFailInvalidSamples));
+  out.print(",N:");
+  out.print(nearHealth.status(config::kSensorHealthWarnInvalidSamples, config::kSensorHealthFailInvalidSamples));
+}
+
+void printSensorHealth(Stream& out) {
+  const SensorHealth& far = farHealth.snapshot();
+  const SensorHealth& near = nearHealth.snapshot();
+
+  out.print("sensor_health: ");
+  printSensorHealthValue(out);
+  out.println();
+  out.print("far_invalid_streak: ");
+  out.println(far.consecutiveInvalid);
+  out.print("far_invalid_rate_pct: ");
+  out.println(farHealth.invalidRatePercent());
+  out.print("near_invalid_streak: ");
+  out.println(near.consecutiveInvalid);
+  out.print("near_invalid_rate_pct: ");
+  out.println(nearHealth.invalidRatePercent());
+}
+
+void resetSensorFilters() {
+  farDebouncer.reset(false);
+  nearDebouncer.reset(false);
+}
+
+bool applyThresholdCommand(const String& command, Stream& out) {
+  if (command.equalsIgnoreCase("thresholds")) {
+    printSectionHeader(out, "SENSOR THRESHOLDS");
+    printThresholds(out);
+    printSensorFilter(out);
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("filter")) {
+    printSectionHeader(out, "SENSOR FILTER");
+    printSensorFilter(out);
+    out.println("median filtering rejects single ultrasonic spikes; debounce requires repeated agreement before occupancy changes.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("health")) {
+    printSectionHeader(out, "SENSOR HEALTH");
+    printSensorHealth(out);
+    out.println("WARN/FAIL means repeated invalid ultrasonic readings, usually timeout, bad angle, loose wiring, or sensor power issue.");
+    return true;
+  }
+
+  float farCm = 0.0f;
+  float nearCm = 0.0f;
+  if (sscanf(command.c_str(), "set_thresholds %f %f", &farCm, &nearCm) == 2) {
+    if (!isValidThreshold(farCm) || !isValidThreshold(nearCm)) {
+      out.println("Thresholds must be between 5 cm and 400 cm.");
+      return true;
+    }
+
+    farThresholdCm = farCm;
+    nearThresholdCm = nearCm;
+    resetSensorFilters();
+    out.println("Sensor thresholds updated.");
+    printThresholds(out);
+    printSensorFilter(out);
+    return true;
+  }
+
+  if (sscanf(command.c_str(), "set_far_threshold %f", &farCm) == 1) {
+    if (!isValidThreshold(farCm)) {
+      out.println("Far threshold must be between 5 cm and 400 cm.");
+      return true;
+    }
+
+    farThresholdCm = farCm;
+    resetSensorFilters();
+    out.println("Far sensor threshold updated.");
+    printThresholds(out);
+    printSensorFilter(out);
+    return true;
+  }
+
+  if (sscanf(command.c_str(), "set_near_threshold %f", &nearCm) == 1) {
+    if (!isValidThreshold(nearCm)) {
+      out.println("Near threshold must be between 5 cm and 400 cm.");
+      return true;
+    }
+
+    nearThresholdCm = nearCm;
+    resetSensorFilters();
+    out.println("Near sensor threshold updated.");
+    printThresholds(out);
+    printSensorFilter(out);
+    return true;
+  }
+
+  return false;
 }
 
 void printStatusSnapshot(Stream& out) {
@@ -195,6 +333,9 @@ void printStatusSnapshot(Stream& out) {
 
   out.print("log_mode: ");
   out.println(logModeName(logMode));
+  printThresholds(out);
+  printSensorFilter(out);
+  printSensorHealth(out);
   out.print("local_far_sensor: ");
   out.print(lastFarDistanceCm, 1);
   out.print(" cm | ");
@@ -240,6 +381,8 @@ void printStatusSnapshot(Stream& out) {
     out.print("last_rx_snr_db: ");
     out.println(lastSnrDb, 1);
   }
+  out.print("power: ");
+  printIna219Reading(out, lastPowerReading);
 }
 
 void printReport(Stream& out) {
@@ -252,6 +395,9 @@ void printReport(Stream& out) {
 
   out.print("log_mode: ");
   out.println(logModeName(logMode));
+  printThresholds(out);
+  printSensorFilter(out);
+  printSensorHealth(out);
   out.print("local_far_distance_cm: ");
   out.println(lastFarDistanceCm, 1);
   out.print("local_far_occupied: ");
@@ -297,6 +443,12 @@ void printReport(Stream& out) {
     out.print("last_rx_snr_db: ");
     out.println(lastSnrDb, 1);
   }
+  out.print("power_bus_v: ");
+  out.println(lastPowerReading.ok ? String(lastPowerReading.busVoltageV, 3) : "NA");
+  out.print("power_current_ma: ");
+  out.println(lastPowerReading.ok ? String(lastPowerReading.currentMa, 1) : "NA");
+  out.print("power_mw: ");
+  out.println(lastPowerReading.ok ? String(lastPowerReading.powerMw, 1) : "NA");
 }
 
 bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
@@ -308,6 +460,10 @@ bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
   }
 
   if (tryApplyLogModeCommand(command, logMode, Serial)) {
+    return true;
+  }
+
+  if (applyThresholdCommand(command, Serial)) {
     return true;
   }
 
@@ -323,6 +479,12 @@ bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
 
   if (command.equalsIgnoreCase("report")) {
     printReport(Serial);
+    return false;
+  }
+
+  if (command.equalsIgnoreCase("power")) {
+    Serial.print("INA219 power: ");
+    printIna219Reading(Serial, lastPowerReading);
     return false;
   }
 
@@ -493,6 +655,11 @@ void setup() {
   Serial.println(hw::node_b::kSideBLights.green);
   loRaBegin(true, Serial);
   loRaPrintConfig(Serial);
+  ina219Begin(
+      hw::heltec_v3::kIna219I2c.sda,
+      hw::heltec_v3::kIna219I2c.scl,
+      config::kIna219Address,
+      Serial);
   printBenchHelp();
 }
 
@@ -528,11 +695,27 @@ void loop() {
   }
   lastLoopMs = nowMs;
 
-  const float farDistance = readUltrasonicDistanceCm(hw::node_b::kFarSensor.trig, hw::node_b::kFarSensor.echo);
-  const float nearDistance = readUltrasonicDistanceCm(hw::node_b::kNearSensor.trig, hw::node_b::kNearSensor.echo);
+  const SensorReading farReading = readFilteredUltrasonicSensor(
+      hw::node_b::kFarSensor.trig,
+      hw::node_b::kFarSensor.echo,
+      farThresholdCm,
+      farDebouncer,
+      config::kUltrasonicMedianSamples,
+      config::kOccupancyDebounceSamples);
+  const SensorReading nearReading = readFilteredUltrasonicSensor(
+      hw::node_b::kNearSensor.trig,
+      hw::node_b::kNearSensor.echo,
+      nearThresholdCm,
+      nearDebouncer,
+      config::kUltrasonicMedianSamples,
+      config::kOccupancyDebounceSamples);
 
-  const bool farOccupied = isDistanceOccupied(farDistance, config::kFarThresholdCm);
-  const bool nearOccupied = isDistanceOccupied(nearDistance, config::kNearThresholdCm);
+  const float farDistance = farReading.distanceCm;
+  const float nearDistance = nearReading.distanceCm;
+  const bool farOccupied = farReading.stableOccupied;
+  const bool nearOccupied = nearReading.stableOccupied;
+  farHealth.update(farDistance);
+  nearHealth.update(nearDistance);
 
   SideTelemetry localTelemetry = laneEstimator.update(SideId::B, farOccupied, nearOccupied, nowMs);
   localTelemetry.emergencyRequested = localEmergencyRequested;
@@ -545,6 +728,7 @@ void loop() {
   lastLocalTelemetry = localTelemetry;
   lastEffectiveRemoteTelemetry = remoteTelemetryNow;
   lastDecision = decision;
+  lastPowerReading = ina219Read();
   hasSnapshot = true;
 
   applyLights(decision.lights);
@@ -561,6 +745,14 @@ void loop() {
       Serial.print(nearDistance, 1);
       Serial.print("cm/");
       Serial.print(nearOccupied ? "OCC" : "FREE");
+      Serial.print(" | thresholds=");
+      Serial.print(farThresholdCm, 1);
+      Serial.print("/");
+      Serial.print(nearThresholdCm, 1);
+      Serial.print(" | filter=");
+      printSensorFilterValue(Serial);
+      Serial.print(" | health=");
+      printSensorHealthValue(Serial);
       Serial.print(" | localQ=");
       Serial.print(localTelemetry.estimatedQueue);
       Serial.print(" | remoteQ=");
@@ -580,7 +772,18 @@ void loop() {
       Serial.print(" | lights=A:");
       Serial.print(lightStateLabel(decision.lights.aRed, decision.lights.aYellow, decision.lights.aGreen));
       Serial.print(" B:");
-      Serial.println(lightStateLabel(decision.lights.bRed, decision.lights.bYellow, decision.lights.bGreen));
+      Serial.print(lightStateLabel(decision.lights.bRed, decision.lights.bYellow, decision.lights.bGreen));
+      Serial.print(" | power=");
+      if (lastPowerReading.ok) {
+        Serial.print(lastPowerReading.busVoltageV, 3);
+        Serial.print("V/");
+        Serial.print(lastPowerReading.currentMa, 1);
+        Serial.print("mA/");
+        Serial.print(lastPowerReading.powerMw, 1);
+        Serial.println("mW");
+      } else {
+        Serial.println("INA219_NA");
+      }
     } else if (logMode == LogMode::Verbose) {
       Serial.print("SENSE | far=");
       Serial.print(farDistance, 1);
@@ -616,7 +819,9 @@ void loop() {
       Serial.print(" | sideA=");
       Serial.print(lightStateLabel(decision.lights.aRed, decision.lights.aYellow, decision.lights.aGreen));
       Serial.print(" sideB=");
-      Serial.println(lightStateLabel(decision.lights.bRed, decision.lights.bYellow, decision.lights.bGreen));
+      Serial.print(lightStateLabel(decision.lights.bRed, decision.lights.bYellow, decision.lights.bGreen));
+      Serial.print(" power=");
+      printIna219Reading(Serial, lastPowerReading);
     }
   }
 }
