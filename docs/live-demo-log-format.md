@@ -6,6 +6,7 @@ For the final live demo, use Node B as the main terminal because Node B has the 
 - Side B data measured locally
 - traffic-light state for both sides
 - physical emergency push-button state
+- backup/recovery state when Node A LoRa data is stale
 - stale/live LoRa status
 - optional INA219 power data
 
@@ -27,7 +28,7 @@ The older visual simulator can draw more sensor zones for presentation, but the 
 Node B now prints one live summary line with both queues and all four sensor distances:
 
 ```text
-B STATUS | A_queue=2 | B_queue=1 | A_far=42.0cm/OCC | A_near=999.0cm/FREE | B_far=48.4cm/OCC | B_near=31.2cm/OCC | thresholds=50.0/50.0 | filter=median3_debounce2 | health=F:OK,N:OK | localQ=1 | remoteQ=2 | source=LORA_RADIO | stale=OFF | green=A | phase=GREEN | emergency=OFF | emergency_target=NONE | button_override=OFF | priority=A | lights=A:GREEN B:RED | power=5.012V/178.4mA/894.1mW
+B STATUS | A_queue=2 | B_queue=1 | A_far=42.0cm/OCC | A_near=999.0cm/FREE | B_far=48.4cm/OCC | B_near=31.2cm/OCC | thresholds=50.0/50.0 | filter=median3_debounce2 | health=F:OK,N:OK | localQ=1 | remoteQ=2 | source=LORA_RADIO | stale=OFF | backup=OFF | backup_reason=NONE | recovery=LIVE | green=A | phase=GREEN | emergency=OFF | emergency_target=NONE | button_override=OFF | priority=A | lights=A:GREEN B:RED | power=5.012V/178.4mA/894.1mW
 ```
 
 Use this explanation in the demo:
@@ -42,6 +43,9 @@ Use this explanation in the demo:
 - `filter=median3_debounce2`: median filtering and debouncing enabled.
 - `health=F:OK,N:OK`: Node B local sensor health.
 - `source=LORA_RADIO` and `stale=OFF`: Node A data is live.
+- `backup=OFF/ON`: whether Node B is in fail-safe takeover because Node A data is missing.
+- `backup_reason=NONE/NODE_A_STALE`: reason for fail-safe takeover.
+- `recovery=LIVE/WAITING_FOR_LORA`: whether the system has recovered real Node A telemetry.
 - `emergency_target=NONE/A/B`: which side currently has emergency priority.
 - `button_override=OFF/A/B`: physical push-button override selected on Node B.
 - `lights=A:GREEN B:RED`: current traffic-light output.
@@ -103,3 +107,12 @@ The logger now stores these extra columns:
 - `b_near_occupied`
 
 The older `far_cm` and `near_cm` columns are still kept for compatibility; for Node B rows they represent the local Side B sensors.
+
+## Backup And Recovery Demo
+
+Node B has a fail-safe backup mode for Node A failure:
+
+- normal state: `source=LORA_RADIO | stale=OFF | backup=OFF | recovery=LIVE`
+- Node A disconnected or LoRa lost for more than the stale timeout: `source=LORA_STALE | stale=ON | backup=ON | recovery=WAITING_FOR_LORA`
+- Node B keeps controlling the lights using a conservative assumed Side A queue instead of pretending that Side A is empty.
+- when Node A packets return: `RECOVERY EVENT | backup=OFF` and the live line returns to `source=LORA_RADIO | stale=OFF | backup=OFF | recovery=LIVE`.

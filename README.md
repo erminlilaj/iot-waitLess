@@ -12,7 +12,7 @@ This repository contains the final IoT prototype package for the Wait Less proje
 - Real crossroad CSV with labelled `vehicle` / `empty` samples.
 - INA219-based energy measurement.
 - Final evidence dashboard, report, graph assets, and real-data simulator replay.
-- Firmware robustness improvements: per-sensor thresholds, median filtering, debounce, and sensor health diagnostics.
+- Firmware robustness improvements: per-sensor thresholds, median filtering, debounce, sensor health diagnostics, emergency button input, and Node A stale-link backup/recovery mode.
 
 ## Final Evidence Snapshot
 
@@ -203,6 +203,7 @@ The firmware now includes the final project features:
 - the serial-emulation path is still kept for testing before real hardware is available
 - both nodes now support `log quiet`, `log summary`, `log verbose`, `status`, and `report`
 - Node B now times out stale radio telemetry after `3000 ms` so old packets do not keep a phantom queue alive
+- when Node A becomes stale, Node B enters backup mode, assumes conservative Side A demand, logs `backup=ON`, and automatically recovers when LoRa packets return
 
 ## Final Presentation Assets
 

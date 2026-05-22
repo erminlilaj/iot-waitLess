@@ -57,6 +57,9 @@ FIELDS = [
     "passed_count",
     "remote_source",
     "remote_stale",
+    "backup_mode",
+    "backup_reason",
+    "recovery_state",
     "green_side",
     "phase",
     "emergency",
@@ -215,6 +218,9 @@ def parse_status_line(line: str) -> dict[str, str]:
         row["local_queue"] = values.get("B_queue") or values.get("localQ", "")
         row["remote_queue"] = values.get("A_queue") or values.get("remoteQ", "")
         row["remote_stale"] = values.get("stale", "")
+        row["backup_mode"] = values.get("backup", "")
+        row["backup_reason"] = values.get("backup_reason", "")
+        row["recovery_state"] = values.get("recovery", "")
         row["green_side"] = values.get("green", "")
         row["phase"] = values.get("phase", "")
         row["emergency"] = values.get("emergency", "")
@@ -395,6 +401,8 @@ def control_text(row: dict[str, str]) -> str:
         green = row["green_side"] or "-"
         phase = row["phase"] or "-"
         source = row["remote_source"] or row["source"] or "-"
+        if row.get("backup_mode") == "ON":
+            return f"{green}/{phase} BACKUP"
         if row.get("emergency") == "ON":
             target = row.get("emergency_target") or row.get("priority_side") or "?"
             return f"{green}/{phase} EM:{target}"

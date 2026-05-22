@@ -18,6 +18,7 @@ constexpr uint16_t kLightSelfTestOffMs = 120;
 constexpr uint16_t kButtonDebounceMs = 35;
 constexpr uint16_t kButtonClickWindowMs = 450;
 constexpr uint16_t kButtonLongPressMs = 1200;
+constexpr uint32_t kBackupRemoteQueue = 1;
 
 ControllerConfig makeControllerConfig() {
   ControllerConfig config;
@@ -55,6 +56,8 @@ float lastRssiDbm = 0.0f;
 float lastSnrDb = 0.0f;
 bool lastRxWasRadio = false;
 bool remoteTelemetryStale = false;
+bool nodeABackupActive = false;
+const char* nodeABackupReason = "NONE";
 Ina219Reading lastPowerReading;
 OccupancyDebouncer farDebouncer;
 OccupancyDebouncer nearDebouncer;
@@ -77,30 +80,69 @@ SideTelemetry makeRemoteTelemetry(
     uint32_t estimatedQueue,
     uint32_t nowMs);
 
+const char* backupModeLabel() {
+  return nodeABackupActive ? "ON" : "OFF";
+}
+
+const char* recoveryStateLabel() {
+  return nodeABackupActive ? "WAITING_FOR_LORA" : "LIVE";
+}
+
+void setNodeABackupActive(bool active, const char* reason) {
+  if (nodeABackupActive == active) {
+    if (active) {
+      nodeABackupReason = reason;
+    }
+    return;
+  }
+
+  nodeABackupActive = active;
+  nodeABackupReason = active ? reason : "NONE";
+
+  if (active) {
+    Serial.print("BACKUP EVENT | backup=ON | reason=");
+    Serial.print(nodeABackupReason);
+    Serial.println(" | node_b=TAKEOVER | recovery=WAITING_FOR_LORA");
+  } else {
+    Serial.println("RECOVERY EVENT | backup=OFF | reason=NODE_A_RECOVERED | recovery=LIVE");
+  }
+}
+
 SideTelemetry applyRemoteEmergencyOverride(SideTelemetry telemetry) {
   telemetry.emergencyRequested = telemetry.emergencyRequested || remoteEmergencyRequested;
   return telemetry;
 }
 
+SideTelemetry makeNodeABackupTelemetry(uint32_t nowMs) {
+  SideTelemetry telemetry = makeRemoteTelemetry(false, false, false, kBackupRemoteQueue, nowMs);
+  telemetry.farDistanceCm = 999.0f;
+  telemetry.nearDistanceCm = 999.0f;
+  return telemetry;
+}
+
 SideTelemetry effectiveRemoteTelemetry(uint32_t nowMs) {
   if (remoteTelemetryInjected) {
+    setNodeABackupActive(false, "SERIAL_EMU");
     remoteTelemetryStale = false;
     lastRemoteSource = "SERIAL_EMU";
     return applyRemoteEmergencyOverride(remoteTelemetry);
   }
 
   if (!loRaIsActive()) {
+    setNodeABackupActive(true, "LORA_INACTIVE");
     remoteTelemetryStale = false;
-    lastRemoteSource = "IDLE";
-    return applyRemoteEmergencyOverride(remoteTelemetry);
+    lastRemoteSource = "BACKUP_NO_LORA";
+    return applyRemoteEmergencyOverride(makeNodeABackupTelemetry(nowMs));
   }
 
   if (lastRemoteRxMs == 0 || (nowMs - lastRemoteRxMs) > config::kRemoteTelemetryTimeoutMs) {
+    setNodeABackupActive(true, "NODE_A_STALE");
     remoteTelemetryStale = true;
     lastRemoteSource = "LORA_STALE";
-    return applyRemoteEmergencyOverride(makeRemoteTelemetry(false, false, false, 0, nowMs));
+    return applyRemoteEmergencyOverride(makeNodeABackupTelemetry(nowMs));
   }
 
+  setNodeABackupActive(false, "LORA_RADIO");
   remoteTelemetryStale = false;
   lastRemoteSource = "LORA_RADIO";
   return applyRemoteEmergencyOverride(remoteTelemetry);
@@ -473,6 +515,12 @@ void printStatusSnapshot(Stream& out) {
   out.println(lastRemoteSource);
   out.print("remote_stale: ");
   out.println(onOffLabel(remoteTelemetryStale));
+  out.print("backup_mode: ");
+  out.println(backupModeLabel());
+  out.print("backup_reason: ");
+  out.println(nodeABackupReason);
+  out.print("recovery_state: ");
+  out.println(recoveryStateLabel());
   if (lastRemoteRxMs > 0) {
     out.print("last_radio_age_ms: ");
     out.println(millis() - lastRemoteRxMs);
@@ -547,6 +595,12 @@ void printReport(Stream& out) {
   out.println(lastRemoteSource);
   out.print("remote_stale: ");
   out.println(onOffLabel(remoteTelemetryStale));
+  out.print("backup_mode: ");
+  out.println(backupModeLabel());
+  out.print("backup_reason: ");
+  out.println(nodeABackupReason);
+  out.print("recovery_state: ");
+  out.println(recoveryStateLabel());
   if (lastRemoteRxMs > 0) {
     out.print("last_radio_age_ms: ");
     out.println(millis() - lastRemoteRxMs);
@@ -911,6 +965,12 @@ void loop() {
       Serial.print(lastRemoteSource);
       Serial.print(" | stale=");
       Serial.print(onOffLabel(remoteTelemetryStale));
+      Serial.print(" | backup=");
+      Serial.print(backupModeLabel());
+      Serial.print(" | backup_reason=");
+      Serial.print(nodeABackupReason);
+      Serial.print(" | recovery=");
+      Serial.print(recoveryStateLabel());
       Serial.print(" | green=");
       Serial.print(sideName(decision.greenSide));
       Serial.print(" | phase=");
@@ -955,6 +1015,12 @@ void loop() {
       Serial.print(lastRemoteSource);
       Serial.print(" | stale=");
       Serial.println(onOffLabel(remoteTelemetryStale));
+      Serial.print("BACKUP | backup=");
+      Serial.print(backupModeLabel());
+      Serial.print(" reason=");
+      Serial.print(nodeABackupReason);
+      Serial.print(" recovery=");
+      Serial.println(recoveryStateLabel());
 
       Serial.print("CTRL | green=");
       Serial.print(sideName(decision.greenSide));
