@@ -149,6 +149,8 @@ SideTelemetry makeRemoteTelemetry(
   telemetry.passedCount = 0;
   telemetry.estimatedQueue = estimatedQueue;
   telemetry.timestampMs = nowMs;
+  telemetry.farDistanceCm = farOccupied ? 25.0f : 999.0f;
+  telemetry.nearDistanceCm = nearOccupied ? 25.0f : 999.0f;
   return telemetry;
 }
 
@@ -196,7 +198,7 @@ void printBenchHelp() {
   Serial.println("  remote_ambulance_off");
   Serial.println("  local_ambulance_on");
   Serial.println("  local_ambulance_off");
-  Serial.println("  A,1,0,4,2,2,0,12345   (raw telemetry payload)");
+  Serial.println("  A,1,0,4,2,2,0,12345,42.0,999.0   (raw telemetry payload with distances)");
   printLogModeCommands(Serial);
 }
 
@@ -246,6 +248,12 @@ void printSensorHealth(Stream& out) {
   out.println(near.consecutiveInvalid);
   out.print("near_invalid_rate_pct: ");
   out.println(nearHealth.invalidRatePercent());
+}
+
+void printDistanceState(Stream& out, float distanceCm, bool occupied) {
+  out.print(distanceCm, 1);
+  out.print("cm/");
+  out.print(occupied ? "OCC" : "FREE");
 }
 
 void resetSensorFilters() {
@@ -348,6 +356,14 @@ void printStatusSnapshot(Stream& out) {
   out.println(lastLocalTelemetry.estimatedQueue);
   out.print("remote_queue: ");
   out.println(lastEffectiveRemoteTelemetry.estimatedQueue);
+  out.print("remote_far_sensor: ");
+  out.print(lastEffectiveRemoteTelemetry.farDistanceCm, 1);
+  out.print(" cm | ");
+  out.println(lastEffectiveRemoteTelemetry.farOccupied ? "OCC" : "FREE");
+  out.print("remote_near_sensor: ");
+  out.print(lastEffectiveRemoteTelemetry.nearDistanceCm, 1);
+  out.print(" cm | ");
+  out.println(lastEffectiveRemoteTelemetry.nearOccupied ? "OCC" : "FREE");
   out.print("remote_source: ");
   out.println(lastRemoteSource);
   out.print("remote_stale: ");
@@ -410,6 +426,14 @@ void printReport(Stream& out) {
   out.println(lastLocalTelemetry.estimatedQueue);
   out.print("remote_queue: ");
   out.println(lastEffectiveRemoteTelemetry.estimatedQueue);
+  out.print("remote_far_distance_cm: ");
+  out.println(lastEffectiveRemoteTelemetry.farDistanceCm, 1);
+  out.print("remote_far_occupied: ");
+  out.println(lastEffectiveRemoteTelemetry.farOccupied ? "YES" : "NO");
+  out.print("remote_near_distance_cm: ");
+  out.println(lastEffectiveRemoteTelemetry.nearDistanceCm, 1);
+  out.print("remote_near_occupied: ");
+  out.println(lastEffectiveRemoteTelemetry.nearOccupied ? "YES" : "NO");
   out.print("remote_source: ");
   out.println(lastRemoteSource);
   out.print("remote_stale: ");
@@ -719,6 +743,8 @@ void loop() {
 
   SideTelemetry localTelemetry = laneEstimator.update(SideId::B, farOccupied, nearOccupied, nowMs);
   localTelemetry.emergencyRequested = localEmergencyRequested;
+  localTelemetry.farDistanceCm = farDistance;
+  localTelemetry.nearDistanceCm = nearDistance;
   const SideTelemetry remoteTelemetryNow = effectiveRemoteTelemetry(nowMs);
   const TrafficDecision decision = controller.update(remoteTelemetryNow, localTelemetry, nowMs);
   lastFarDistanceCm = farDistance;
@@ -737,14 +763,22 @@ void loop() {
     lastStatusMs = nowMs;
 
     if (logMode == LogMode::Summary) {
-      Serial.print("B STATUS | far=");
-      Serial.print(farDistance, 1);
-      Serial.print("cm/");
-      Serial.print(farOccupied ? "OCC" : "FREE");
+      Serial.print("B STATUS | A_queue=");
+      Serial.print(remoteTelemetryNow.estimatedQueue);
+      Serial.print(" | B_queue=");
+      Serial.print(localTelemetry.estimatedQueue);
+      Serial.print(" | A_far=");
+      printDistanceState(Serial, remoteTelemetryNow.farDistanceCm, remoteTelemetryNow.farOccupied);
+      Serial.print(" | A_near=");
+      printDistanceState(Serial, remoteTelemetryNow.nearDistanceCm, remoteTelemetryNow.nearOccupied);
+      Serial.print(" | B_far=");
+      printDistanceState(Serial, farDistance, farOccupied);
+      Serial.print(" | B_near=");
+      printDistanceState(Serial, nearDistance, nearOccupied);
+      Serial.print(" | far=");
+      printDistanceState(Serial, farDistance, farOccupied);
       Serial.print(" | near=");
-      Serial.print(nearDistance, 1);
-      Serial.print("cm/");
-      Serial.print(nearOccupied ? "OCC" : "FREE");
+      printDistanceState(Serial, nearDistance, nearOccupied);
       Serial.print(" | thresholds=");
       Serial.print(farThresholdCm, 1);
       Serial.print("/");

@@ -30,6 +30,8 @@ struct SideTelemetry {
   uint32_t passedCount = 0;
   uint32_t estimatedQueue = 0;
   uint32_t timestampMs = 0;
+  float farDistanceCm = 999.0f;
+  float nearDistanceCm = 999.0f;
 };
 
 struct TrafficDecision {

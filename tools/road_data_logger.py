@@ -36,6 +36,16 @@ FIELDS = [
     "near_threshold_cm",
     "sensor_filter",
     "sensor_health",
+    "a_queue",
+    "b_queue",
+    "a_far_cm",
+    "a_far_occupied",
+    "a_near_cm",
+    "a_near_occupied",
+    "b_far_cm",
+    "b_far_occupied",
+    "b_near_cm",
+    "b_near_occupied",
     "far_cm",
     "far_occupied",
     "near_cm",
@@ -167,6 +177,11 @@ def parse_status_line(line: str) -> dict[str, str]:
         row["far_cm"], row["far_occupied"] = parse_sensor(values.get("far", ""))
         row["near_cm"], row["near_occupied"] = parse_sensor(values.get("near", ""))
         row["queue"] = values.get("queue", "")
+        row["a_queue"] = row["queue"]
+        row["a_far_cm"] = row["far_cm"]
+        row["a_far_occupied"] = row["far_occupied"]
+        row["a_near_cm"] = row["near_cm"]
+        row["a_near_occupied"] = row["near_occupied"]
         row["incoming_count"] = values.get("in", "")
         row["passed_count"] = values.get("out", "")
         row["emergency"] = values.get("emergency", "")
@@ -183,10 +198,20 @@ def parse_status_line(line: str) -> dict[str, str]:
         row["far_threshold_cm"], row["near_threshold_cm"] = parse_thresholds(values.get("thresholds", ""))
         row["sensor_filter"] = values.get("filter", "")
         row["sensor_health"] = values.get("health", "")
-        row["far_cm"], row["far_occupied"] = parse_sensor(values.get("far", ""))
-        row["near_cm"], row["near_occupied"] = parse_sensor(values.get("near", ""))
-        row["local_queue"] = values.get("localQ", "")
-        row["remote_queue"] = values.get("remoteQ", "")
+        row["a_queue"] = values.get("A_queue") or values.get("remoteQ", "")
+        row["b_queue"] = values.get("B_queue") or values.get("localQ", "")
+        row["a_far_cm"], row["a_far_occupied"] = parse_sensor(values.get("A_far", ""))
+        row["a_near_cm"], row["a_near_occupied"] = parse_sensor(values.get("A_near", ""))
+        row["b_far_cm"], row["b_far_occupied"] = parse_sensor(values.get("B_far", ""))
+        row["b_near_cm"], row["b_near_occupied"] = parse_sensor(values.get("B_near", ""))
+        row["far_cm"], row["far_occupied"] = parse_sensor(values.get("B_far") or values.get("far", ""))
+        row["near_cm"], row["near_occupied"] = parse_sensor(values.get("B_near") or values.get("near", ""))
+        row["b_far_cm"] = row["b_far_cm"] or row["far_cm"]
+        row["b_far_occupied"] = row["b_far_occupied"] or row["far_occupied"]
+        row["b_near_cm"] = row["b_near_cm"] or row["near_cm"]
+        row["b_near_occupied"] = row["b_near_occupied"] or row["near_occupied"]
+        row["local_queue"] = values.get("B_queue") or values.get("localQ", "")
+        row["remote_queue"] = values.get("A_queue") or values.get("remoteQ", "")
         row["remote_stale"] = values.get("stale", "")
         row["green_side"] = values.get("green", "")
         row["phase"] = values.get("phase", "")
@@ -373,30 +398,39 @@ def control_text(row: dict[str, str]) -> str:
 def print_live_header() -> None:
     print()
     print(
-        " time(s) node far_cm far  near_cm near  mA      thr(F/N)   filter             health      queue      control             truth result"
+        " time(s) node A_Q B_Q A_far        A_near       B_far        B_near       mA      health      control             truth result"
     )
     print(
-        "------- ---- ------ ---- ------- ---- ------- ---------- ------------------ ----------- ---------- ------------------- ----- ------"
+        "------- ---- --- --- ------------ ------------ ------------ ------------ ------- ----------- ------------------- ----- ------"
     )
+
+
+def sensor_text(row: dict[str, str], cm_key: str, occupied_key: str) -> str:
+    cm = row.get(cm_key) or "?"
+    state = state_label(row.get(occupied_key, ""))
+    return f"{cm}cm/{state}" if cm != "?" else f"?/{state}"
 
 
 def format_sample(row: dict[str, str]) -> str:
-    thresholds = "{}/{}".format(row.get("far_threshold_cm") or "?", row.get("near_threshold_cm") or "?")
-    sensor_filter = row.get("sensor_filter") or "-"
     sensor_health = row.get("sensor_health") or "-"
     truth = row.get("truth_any_vehicle") or "-"
+    a_queue = row.get("a_queue") or row.get("remote_queue") or row.get("queue") or "-"
+    b_queue = row.get("b_queue") or row.get("local_queue") or "-"
+    a_far = sensor_text(row, "a_far_cm", "a_far_occupied")
+    a_near = sensor_text(row, "a_near_cm", "a_near_occupied")
+    b_far = sensor_text(row, "b_far_cm", "b_far_occupied")
+    b_near = sensor_text(row, "b_near_cm", "b_near_occupied")
     return (
         f"{row['elapsed_s']:>7} "
         f"{row['node'] or '-':<4} "
-        f"{row['far_cm'] or '?':>6} "
-        f"{state_label(row.get('far_occupied', '')):<4} "
-        f"{row['near_cm'] or '?':>7} "
-        f"{state_label(row.get('near_occupied', '')):<4} "
+        f"{a_queue:>3} "
+        f"{b_queue:>3} "
+        f"{a_far[:12]:<12} "
+        f"{a_near[:12]:<12} "
+        f"{b_far[:12]:<12} "
+        f"{b_near[:12]:<12} "
         f"{row.get('power_current_ma') or '?':>7} "
-        f"{thresholds:>10} "
-        f"{sensor_filter[:18]:<18} "
         f"{sensor_health[:11]:<11} "
-        f"{queue_text(row):<10} "
         f"{control_text(row)[:19]:<19} "
         f"{truth:^5} "
         f"{detection_result(row):^6}"

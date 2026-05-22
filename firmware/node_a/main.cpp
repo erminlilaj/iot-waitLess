@@ -450,6 +450,8 @@ void loop() {
 
   SideTelemetry telemetry = laneEstimator.update(SideId::A, farOccupied, nearOccupied, nowMs);
   telemetry.emergencyRequested = manualEmergencyRequested;
+  telemetry.farDistanceCm = farDistance;
+  telemetry.nearDistanceCm = nearDistance;
   lastFarDistanceCm = farDistance;
   lastNearDistanceCm = nearDistance;
   lastFarOccupied = farOccupied;

@@ -60,6 +60,7 @@ The waiting-pressure estimate is a digital-twin comparison: the same real road d
 - `docs/ina219-energy-measurement.md`: real current and energy measurement workflow with INA219
 - `docs/final-presentation-plan.md`: slide plan, video storyboard, missing-photo checklist, and graph list
 - `docs/final-delivery-checklist.md`: official assignment requirement mapping and final submission checklist
+- `docs/live-demo-log-format.md`: final four-sensor live-demo terminal/CSV format
 - `tools/final_presentation_graphs.py`: generates final graph PNGs for the presentation
 - `data/data_readed/presentation_graphs/`: final slide-ready graph images
 

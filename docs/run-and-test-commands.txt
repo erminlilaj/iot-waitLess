@@ -130,6 +130,23 @@ python tools\ina219_energy_summary.py --csv data\road_sessions\node_a_ina219.csv
 Replace COM3 and current values with your real values.
 Full guide: docs\road-field-data-collection.md
 INA219 guide: docs\ina219-energy-measurement.md
+Final four-sensor demo log format: docs\live-demo-log-format.md
+
+---
+FINAL LIVE DEMO LOG (4 physical ultrasonic sensors)
+
+1) Power Node A normally so it transmits Side A queue and distances over LoRa.
+2) Connect Node B to the laptop, because Node B sees both sides.
+3) Start the final demo logger:
+python tools\road_data_logger.py --port COM3 --node node_b --out data\road_sessions\final_demo_node_b.csv
+
+Expected live table columns:
+  A_Q B_Q A_far A_near B_far B_near health control
+
+Expected raw Node B line:
+  B STATUS | A_queue=... | B_queue=... | A_far=...cm/... | A_near=...cm/... | B_far=...cm/... | B_near=...cm/... | source=LORA_RADIO | stale=OFF | lights=A:... B:...
+
+This is the terminal view to record for the final demo video.
 
 ---
 REAL ROAD VISUAL SIMULATOR REPLAY
