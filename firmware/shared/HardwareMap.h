@@ -86,6 +86,10 @@ constexpr UltrasonicPins kNearSensor = {
     7,
 };
 
+// Physical emergency selector button on Node B.
+// Wire the button between this GPIO and GND; firmware uses INPUT_PULLUP.
+constexpr uint8_t kEmergencyButton = 3;
+
 // Node B drives both traffic-light heads in the current firmware design.
 constexpr TrafficLightPins kSideALights = {
     33,

@@ -40,6 +40,7 @@ Side B sensing + controller node:
 | Far sensor ECHO | `5` | `J3-16` | use voltage divider or level shifter if sensor ECHO is `5V` |
 | Near sensor TRIG | `6` | `J3-17` | direct from ESP32 output |
 | Near sensor ECHO | `7` | `J3-18` | use voltage divider or level shifter if sensor ECHO is `5V` |
+| Emergency push button | `3` | `J3-14` | active LOW; connect button between GPIO and GND, firmware uses internal pull-up |
 | Side A red LED | `33` | `J2-12` | tested exposed output pin |
 | Side A yellow LED | `34` | `J2-11` | tested exposed output pin |
 | Side A green LED | `35` | `J2-10` | tested exposed output pin |
@@ -117,6 +118,7 @@ This means the current ultrasonic sensor mapping is physically accessible on `J3
 ## Bench-Test Notes
 
 - Because Node A and Node B are different boards, reusing the same GPIO numbers for the two sensor pairs is acceptable.
+- Node B also uses `GPIO3 / J3-14` for the emergency push button; this does not conflict with Node A because it is a different ESP32 board.
 - Keep the LED resistors on Node B only, because Node B currently drives both traffic-light heads.
 - Do not connect a `5V` ultrasonic echo pin directly to an ESP32 input.
 - For each `HC-SR04 ECHO` line on `GPIO5` and `GPIO7`, use a voltage divider or a proper logic-level shifter if the sensor outputs `5V`.

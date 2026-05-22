@@ -15,6 +15,9 @@ namespace {
 
 constexpr uint16_t kLightSelfTestOnMs = 350;
 constexpr uint16_t kLightSelfTestOffMs = 120;
+constexpr uint16_t kButtonDebounceMs = 35;
+constexpr uint16_t kButtonClickWindowMs = 450;
+constexpr uint16_t kButtonLongPressMs = 1200;
 
 ControllerConfig makeControllerConfig() {
   ControllerConfig config;
@@ -31,6 +34,7 @@ AdaptiveController controller(makeControllerConfig());
 SideTelemetry remoteTelemetry;
 
 bool localEmergencyRequested = false;
+bool remoteEmergencyRequested = false;
 bool remoteTelemetryInjected = false;
 LogMode logMode = LogMode::Summary;
 float farThresholdCm = config::kFarThresholdCm;
@@ -56,6 +60,13 @@ OccupancyDebouncer farDebouncer;
 OccupancyDebouncer nearDebouncer;
 SensorHealthTracker farHealth;
 SensorHealthTracker nearHealth;
+bool emergencyButtonStablePressed = false;
+bool emergencyButtonLastRawPressed = false;
+uint32_t emergencyButtonLastRawChangeMs = 0;
+uint32_t emergencyButtonPressedAtMs = 0;
+uint32_t emergencyButtonLastReleaseMs = 0;
+uint8_t emergencyButtonClickCount = 0;
+bool emergencyButtonLongHandled = false;
 
 const char* lightStateLabel(bool red, bool yellow, bool green);
 
@@ -66,28 +77,33 @@ SideTelemetry makeRemoteTelemetry(
     uint32_t estimatedQueue,
     uint32_t nowMs);
 
+SideTelemetry applyRemoteEmergencyOverride(SideTelemetry telemetry) {
+  telemetry.emergencyRequested = telemetry.emergencyRequested || remoteEmergencyRequested;
+  return telemetry;
+}
+
 SideTelemetry effectiveRemoteTelemetry(uint32_t nowMs) {
   if (remoteTelemetryInjected) {
     remoteTelemetryStale = false;
     lastRemoteSource = "SERIAL_EMU";
-    return remoteTelemetry;
+    return applyRemoteEmergencyOverride(remoteTelemetry);
   }
 
   if (!loRaIsActive()) {
     remoteTelemetryStale = false;
     lastRemoteSource = "IDLE";
-    return remoteTelemetry;
+    return applyRemoteEmergencyOverride(remoteTelemetry);
   }
 
   if (lastRemoteRxMs == 0 || (nowMs - lastRemoteRxMs) > config::kRemoteTelemetryTimeoutMs) {
     remoteTelemetryStale = true;
     lastRemoteSource = "LORA_STALE";
-    return makeRemoteTelemetry(false, false, false, 0, nowMs);
+    return applyRemoteEmergencyOverride(makeRemoteTelemetry(false, false, false, 0, nowMs));
   }
 
   remoteTelemetryStale = false;
   lastRemoteSource = "LORA_RADIO";
-  return remoteTelemetry;
+  return applyRemoteEmergencyOverride(remoteTelemetry);
 }
 
 void applyLights(const LightOutput& lights) {
@@ -198,6 +214,7 @@ void printBenchHelp() {
   Serial.println("  remote_ambulance_off");
   Serial.println("  local_ambulance_on");
   Serial.println("  local_ambulance_off");
+  Serial.println("  physical button: 1 click=B emergency, 2 clicks=A emergency, long press=clear");
   Serial.println("  A,1,0,4,2,2,0,12345,42.0,999.0   (raw telemetry payload with distances)");
   printLogModeCommands(Serial);
 }
@@ -259,6 +276,94 @@ void printDistanceState(Stream& out, float distanceCm, bool occupied) {
 void resetSensorFilters() {
   farDebouncer.reset(false);
   nearDebouncer.reset(false);
+}
+
+const char* requestedEmergencyTargetLabel() {
+  if (remoteEmergencyRequested && localEmergencyRequested) {
+    return "A+B";
+  }
+  if (remoteEmergencyRequested) {
+    return "A";
+  }
+  if (localEmergencyRequested) {
+    return "B";
+  }
+  return "OFF";
+}
+
+const char* decisionEmergencyTargetLabel(const TrafficDecision& decision) {
+  return decision.emergencyOverride ? sideName(decision.prioritySide) : "NONE";
+}
+
+void clearEmergencyOverrides(const char* sourceLabel) {
+  localEmergencyRequested = false;
+  remoteEmergencyRequested = false;
+  remoteTelemetry.emergencyRequested = false;
+  Serial.print(sourceLabel);
+  Serial.println(" | emergency_target=NONE | local_ambulance=OFF | remote_ambulance=OFF");
+}
+
+void activateEmergencyTarget(SideId targetSide, const char* sourceLabel, uint8_t clicks) {
+  if (targetSide == SideId::A) {
+    remoteEmergencyRequested = true;
+    localEmergencyRequested = false;
+  } else {
+    localEmergencyRequested = true;
+    remoteEmergencyRequested = false;
+  }
+
+  Serial.print(sourceLabel);
+  Serial.print(" | clicks=");
+  Serial.print(static_cast<int>(clicks));
+  Serial.print(" | emergency_target=");
+  Serial.print(sideName(targetSide));
+  Serial.print(" | local_ambulance=");
+  Serial.print(onOffLabel(localEmergencyRequested));
+  Serial.print(" | remote_ambulance=");
+  Serial.println(onOffLabel(remoteEmergencyRequested));
+}
+
+void processEmergencyButton(uint32_t nowMs) {
+  const bool rawPressed = digitalRead(hw::node_b::kEmergencyButton) == LOW;
+
+  if (rawPressed != emergencyButtonLastRawPressed) {
+    emergencyButtonLastRawPressed = rawPressed;
+    emergencyButtonLastRawChangeMs = nowMs;
+  }
+
+  if ((nowMs - emergencyButtonLastRawChangeMs) >= kButtonDebounceMs &&
+      rawPressed != emergencyButtonStablePressed) {
+    emergencyButtonStablePressed = rawPressed;
+
+    if (emergencyButtonStablePressed) {
+      emergencyButtonPressedAtMs = nowMs;
+      emergencyButtonLongHandled = false;
+    } else if (!emergencyButtonLongHandled) {
+      ++emergencyButtonClickCount;
+      emergencyButtonLastReleaseMs = nowMs;
+    }
+  }
+
+  if (emergencyButtonStablePressed &&
+      !emergencyButtonLongHandled &&
+      (nowMs - emergencyButtonPressedAtMs) >= kButtonLongPressMs) {
+    emergencyButtonClickCount = 0;
+    emergencyButtonLongHandled = true;
+    clearEmergencyOverrides("BUTTON EVENT | action=CLEAR");
+  }
+
+  if (!emergencyButtonStablePressed &&
+      emergencyButtonClickCount > 0 &&
+      (nowMs - emergencyButtonLastReleaseMs) >= kButtonClickWindowMs) {
+    const uint8_t clicks = emergencyButtonClickCount;
+    emergencyButtonClickCount = 0;
+
+    if (clicks == 1) {
+      activateEmergencyTarget(SideId::B, "BUTTON EVENT", clicks);
+    } else {
+      activateEmergencyTarget(SideId::A, "BUTTON EVENT", clicks);
+    }
+  }
 }
 
 bool applyThresholdCommand(const String& command, Stream& out) {
@@ -384,6 +489,10 @@ void printStatusSnapshot(Stream& out) {
   out.println(lastDecision.otherDemand);
   out.print("emergency_override: ");
   out.println(onOffLabel(lastDecision.emergencyOverride));
+  out.print("emergency_target: ");
+  out.println(decisionEmergencyTargetLabel(lastDecision));
+  out.print("button_override: ");
+  out.println(requestedEmergencyTargetLabel());
   out.print("priority_side: ");
   out.println(sideName(lastDecision.prioritySide));
   out.print("side_a_light: ");
@@ -454,6 +563,10 @@ void printReport(Stream& out) {
   out.println(lastDecision.otherDemand);
   out.print("emergency_override: ");
   out.println(onOffLabel(lastDecision.emergencyOverride));
+  out.print("emergency_target: ");
+  out.println(decisionEmergencyTargetLabel(lastDecision));
+  out.print("button_override: ");
+  out.println(requestedEmergencyTargetLabel());
   out.print("priority_side: ");
   out.println(sideName(lastDecision.prioritySide));
   out.print("side_a_light: ");
@@ -538,18 +651,13 @@ bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
   }
 
   if (command.equalsIgnoreCase("remote_ambulance_on")) {
-    remoteTelemetry.emergencyRequested = true;
-    remoteTelemetry.timestampMs = nowMs;
-    remoteTelemetryInjected = true;
-    lastRemoteRxMs = 0;
-    remoteTelemetryStale = false;
-    lastRxWasRadio = false;
-    lastRemoteSource = "SERIAL_EMU";
+    remoteEmergencyRequested = true;
     Serial.println("Remote ambulance override enabled.");
     return true;
   }
 
   if (command.equalsIgnoreCase("remote_ambulance_off")) {
+    remoteEmergencyRequested = false;
     remoteTelemetry.emergencyRequested = false;
     remoteTelemetry.timestampMs = nowMs;
     remoteTelemetryStale = false;
@@ -644,6 +752,10 @@ void setup() {
   pinMode(hw::node_b::kFarSensor.echo, INPUT);
   pinMode(hw::node_b::kNearSensor.trig, OUTPUT);
   pinMode(hw::node_b::kNearSensor.echo, INPUT);
+  pinMode(hw::node_b::kEmergencyButton, INPUT_PULLUP);
+  emergencyButtonLastRawPressed = digitalRead(hw::node_b::kEmergencyButton) == LOW;
+  emergencyButtonStablePressed = emergencyButtonLastRawPressed;
+  emergencyButtonLastRawChangeMs = millis();
 
   pinMode(hw::node_b::kSideALights.red, OUTPUT);
   pinMode(hw::node_b::kSideALights.yellow, OUTPUT);
@@ -665,6 +777,9 @@ void setup() {
   Serial.print(hw::node_b::kNearSensor.trig);
   Serial.print("/");
   Serial.println(hw::node_b::kNearSensor.echo);
+  Serial.print("Node B emergency button GPIO: ");
+  Serial.print(hw::node_b::kEmergencyButton);
+  Serial.println(" (active LOW, button to GND)");
   Serial.print("Node B side-A LEDs R/Y/G: ");
   Serial.print(hw::node_b::kSideALights.red);
   Serial.print("/");
@@ -712,6 +827,7 @@ void loop() {
     }
   }
 
+  processEmergencyButton(nowMs);
   processSerialInput(nowMs);
 
   if (nowMs - lastLoopMs < config::kLoopIntervalMs) {
@@ -801,6 +917,10 @@ void loop() {
       Serial.print(decision.phase == SignalPhase::Green ? "GREEN" : "YELLOW");
       Serial.print(" | emergency=");
       Serial.print(onOffLabel(decision.emergencyOverride));
+      Serial.print(" | emergency_target=");
+      Serial.print(decisionEmergencyTargetLabel(decision));
+      Serial.print(" | button_override=");
+      Serial.print(requestedEmergencyTargetLabel());
       Serial.print(" | priority=");
       Serial.print(sideName(decision.prioritySide));
       Serial.print(" | lights=A:");
@@ -848,6 +968,10 @@ void loop() {
       Serial.print(decision.otherDemand);
       Serial.print(" emergency=");
       Serial.print(onOffLabel(decision.emergencyOverride));
+      Serial.print(" emergencyTarget=");
+      Serial.print(decisionEmergencyTargetLabel(decision));
+      Serial.print(" buttonOverride=");
+      Serial.print(requestedEmergencyTargetLabel());
       Serial.print(" priority=");
       Serial.print(sideName(decision.prioritySide));
       Serial.print(" | sideA=");

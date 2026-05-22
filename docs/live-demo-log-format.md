@@ -5,6 +5,7 @@ For the final live demo, use Node B as the main terminal because Node B has the 
 - Side A data received from Node A over LoRa
 - Side B data measured locally
 - traffic-light state for both sides
+- physical emergency push-button state
 - stale/live LoRa status
 - optional INA219 power data
 
@@ -26,7 +27,7 @@ The older visual simulator can draw more sensor zones for presentation, but the 
 Node B now prints one live summary line with both queues and all four sensor distances:
 
 ```text
-B STATUS | A_queue=2 | B_queue=1 | A_far=42.0cm/OCC | A_near=999.0cm/FREE | B_far=48.4cm/OCC | B_near=31.2cm/OCC | thresholds=50.0/50.0 | filter=median3_debounce2 | health=F:OK,N:OK | localQ=1 | remoteQ=2 | source=LORA_RADIO | stale=OFF | green=A | phase=GREEN | emergency=OFF | priority=A | lights=A:GREEN B:RED | power=5.012V/178.4mA/894.1mW
+B STATUS | A_queue=2 | B_queue=1 | A_far=42.0cm/OCC | A_near=999.0cm/FREE | B_far=48.4cm/OCC | B_near=31.2cm/OCC | thresholds=50.0/50.0 | filter=median3_debounce2 | health=F:OK,N:OK | localQ=1 | remoteQ=2 | source=LORA_RADIO | stale=OFF | green=A | phase=GREEN | emergency=OFF | emergency_target=NONE | button_override=OFF | priority=A | lights=A:GREEN B:RED | power=5.012V/178.4mA/894.1mW
 ```
 
 Use this explanation in the demo:
@@ -41,7 +42,23 @@ Use this explanation in the demo:
 - `filter=median3_debounce2`: median filtering and debouncing enabled.
 - `health=F:OK,N:OK`: Node B local sensor health.
 - `source=LORA_RADIO` and `stale=OFF`: Node A data is live.
+- `emergency_target=NONE/A/B`: which side currently has emergency priority.
+- `button_override=OFF/A/B`: physical push-button override selected on Node B.
 - `lights=A:GREEN B:RED`: current traffic-light output.
+
+## Emergency Push Button
+
+The final Node B firmware supports one physical push button:
+
+```text
+GPIO3 / J3-14 -> push button -> GND
+```
+
+The pin uses the ESP32 internal pull-up, so the button is active LOW:
+
+- one click: emergency priority for Side B / Node B
+- two clicks: emergency priority for Side A / Node A
+- long press: clear both emergency overrides
 
 ## Logger Table
 

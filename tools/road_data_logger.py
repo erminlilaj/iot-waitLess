@@ -60,6 +60,8 @@ FIELDS = [
     "green_side",
     "phase",
     "emergency",
+    "emergency_target",
+    "button_override",
     "priority_side",
     "lights_a",
     "lights_b",
@@ -216,6 +218,8 @@ def parse_status_line(line: str) -> dict[str, str]:
         row["green_side"] = values.get("green", "")
         row["phase"] = values.get("phase", "")
         row["emergency"] = values.get("emergency", "")
+        row["emergency_target"] = values.get("emergency_target", "")
+        row["button_override"] = values.get("button_override", "")
         row["priority_side"] = values.get("priority", "")
         row["lights_a"], row["lights_b"] = parse_lights(values.get("lights", ""))
         row["power_bus_v"], row["power_current_ma"], row["power_mw"] = parse_power(values.get("power", ""))
@@ -391,6 +395,9 @@ def control_text(row: dict[str, str]) -> str:
         green = row["green_side"] or "-"
         phase = row["phase"] or "-"
         source = row["remote_source"] or row["source"] or "-"
+        if row.get("emergency") == "ON":
+            target = row.get("emergency_target") or row.get("priority_side") or "?"
+            return f"{green}/{phase} EM:{target}"
         return f"{green}/{phase} {source}"
     return "-"
 
