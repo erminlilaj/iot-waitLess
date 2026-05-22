@@ -8,8 +8,8 @@ constexpr uint32_t kLoopIntervalMs = 200;
 constexpr uint32_t kTelemetryIntervalMs = 1000;
 constexpr uint32_t kRemoteTelemetryTimeoutMs = 3000;
 
-constexpr float kFarThresholdCm = 100.0f;
-constexpr float kNearThresholdCm = 100.0f;
+constexpr float kFarThresholdCm = 50.0f;
+constexpr float kNearThresholdCm = 50.0f;
 constexpr uint8_t kUltrasonicMedianSamples = 3;
 constexpr uint8_t kOccupancyDebounceSamples = 2;
 constexpr uint16_t kSensorHealthWarnInvalidSamples = 5;

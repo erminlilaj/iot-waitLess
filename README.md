@@ -173,7 +173,7 @@ python tools\road_dashboard.py --csv data\road_sessions\road_2026-05-16_node_a.c
 
 While logging, type `v` when a vehicle is inside the observed sensor zone and `n` when the zone is empty. After the session:
 
-Default sensor thresholds are `100 cm` for the far sensor and `100 cm` for the near sensor. During logging, type `set_thresholds 80 60` to tune them without reflashing.
+The current live-demo firmware defaults to `50 cm` for the far sensor and `50 cm` for the near sensor. During logging, type `set_thresholds 50 50` to restore the demo setting or another pair such as `set_thresholds 80 60` to tune without reflashing. The validated road dataset below used `100 cm / 100 cm`.
 
 ```powershell
 python tools\road_data_summary.py --csv data\road_sessions\road_2026-05-16_node_a.csv --out data\road_sessions\road_2026-05-16_node_a_summary.txt

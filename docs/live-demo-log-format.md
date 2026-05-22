@@ -26,7 +26,7 @@ The older visual simulator can draw more sensor zones for presentation, but the 
 Node B now prints one live summary line with both queues and all four sensor distances:
 
 ```text
-B STATUS | A_queue=2 | B_queue=1 | A_far=42.0cm/OCC | A_near=999.0cm/FREE | B_far=88.4cm/OCC | B_near=31.2cm/OCC | thresholds=100.0/100.0 | filter=median3_debounce2 | health=F:OK,N:OK | localQ=1 | remoteQ=2 | source=LORA_RADIO | stale=OFF | green=A | phase=GREEN | emergency=OFF | priority=A | lights=A:GREEN B:RED | power=5.012V/178.4mA/894.1mW
+B STATUS | A_queue=2 | B_queue=1 | A_far=42.0cm/OCC | A_near=999.0cm/FREE | B_far=48.4cm/OCC | B_near=31.2cm/OCC | thresholds=50.0/50.0 | filter=median3_debounce2 | health=F:OK,N:OK | localQ=1 | remoteQ=2 | source=LORA_RADIO | stale=OFF | green=A | phase=GREEN | emergency=OFF | priority=A | lights=A:GREEN B:RED | power=5.012V/178.4mA/894.1mW
 ```
 
 Use this explanation in the demo:
@@ -37,7 +37,7 @@ Use this explanation in the demo:
 - `B_far` / `B_near`: distances from Node B's two ultrasonic sensors.
 - `OCC`: object detected inside the active threshold.
 - `FREE`: no object detected inside the active threshold.
-- `thresholds=100.0/100.0`: far/near detection threshold in centimeters.
+- `thresholds=50.0/50.0`: far/near detection threshold in centimeters for the live demo.
 - `filter=median3_debounce2`: median filtering and debouncing enabled.
 - `health=F:OK,N:OK`: Node B local sensor health.
 - `source=LORA_RADIO` and `stale=OFF`: Node A data is live.
@@ -58,6 +58,17 @@ the live table now shows:
 ```
 
 This is the line to show in the screen recording, because it proves that the controller is using four real ultrasonic sensors, two queues, LoRa freshness, and traffic-light state.
+
+## Demo Threshold
+
+For the live demo the firmware default is:
+
+```text
+far threshold  = 50 cm
+near threshold = 50 cm
+```
+
+This is intentionally smaller than the validated road-data threshold of `100 cm`. For the classroom demo, `50 cm` makes the detection zone easier to control by hand and reduces false positives from farther reflections. The road evaluation metrics still refer to the real crossroad CSV collected with `100 cm / 100 cm`.
 
 ## CSV Fields Added For The Demo
 

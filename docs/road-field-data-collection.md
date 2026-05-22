@@ -90,15 +90,15 @@ Useful commands:
 thresholds
 filter
 health
-set_thresholds 80 60
-set_far_threshold 90
+set_thresholds 50 50
+set_far_threshold 50
 set_near_threshold 50
 ```
 
-The values are in centimeters. The default firmware threshold is:
+The values are in centimeters. The current live-demo firmware default is:
 
-- far sensor: `100 cm`
-- near sensor: `100 cm`
+- far sensor: `50 cm`
+- near sensor: `50 cm`
 
 A smaller threshold usually reduces false positives, but can increase false negatives if cars are farther away from the sensor.
 

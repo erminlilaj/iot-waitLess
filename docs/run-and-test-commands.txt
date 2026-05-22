@@ -21,7 +21,7 @@ reset_counts
 thresholds
 filter
 health
-set_thresholds 80 60
+set_thresholds 50 50
 state 1 0        (far=OCC, near=FREE)
 state 0 1        (far=FREE, near=OCC)
 state 0 0        (far=FREE, near=FREE)
@@ -56,7 +56,7 @@ local_ambulance_off
 thresholds
 filter
 health
-set_thresholds 80 60
+set_thresholds 50 50
 status
 report
 
@@ -106,10 +106,14 @@ note pedestrian crossed
 thresholds
 filter
 health
-set_thresholds 80 60
+set_thresholds 50 50
 q      stop logging
 
-Default sensor thresholds in firmware:
+Default sensor thresholds in current demo firmware:
+  far  = 50 cm
+  near = 50 cm
+
+Validated road CSV threshold:
   far  = 100 cm
   near = 100 cm
 
@@ -140,11 +144,17 @@ FINAL LIVE DEMO LOG (4 physical ultrasonic sensors)
 3) Start the final demo logger:
 python tools\road_data_logger.py --port COM3 --node node_b --out data\road_sessions\final_demo_node_b.csv
 
+The final demo firmware starts with:
+  thresholds=50.0/50.0
+
+If needed during the demo, type:
+  set_thresholds 50 50
+
 Expected live table columns:
   A_Q B_Q A_far A_near B_far B_near health control
 
 Expected raw Node B line:
-  B STATUS | A_queue=... | B_queue=... | A_far=...cm/... | A_near=...cm/... | B_far=...cm/... | B_near=...cm/... | source=LORA_RADIO | stale=OFF | lights=A:... B:...
+  B STATUS | A_queue=... | B_queue=... | A_far=...cm/... | A_near=...cm/... | B_far=...cm/... | B_near=...cm/... | thresholds=50.0/50.0 | source=LORA_RADIO | stale=OFF | lights=A:... B:...
 
 This is the terminal view to record for the final demo video.
 
