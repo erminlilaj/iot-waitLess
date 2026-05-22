@@ -25,7 +25,7 @@ Side A sensing node:
 
 | Function | GPIO | Header | Note |
 | --- | --- | --- | --- |
-| Far sensor TRIG | `4` | `J3-15` | direct from ESP32 output |
+| Far sensor TRIG | `3` | `J3-14` | direct from ESP32 output |
 | Far sensor ECHO | `5` | `J3-16` | use voltage divider or level shifter if sensor ECHO is `5V` |
 | Near sensor TRIG | `6` | `J3-17` | direct from ESP32 output |
 | Near sensor ECHO | `7` | `J3-18` | use voltage divider or level shifter if sensor ECHO is `5V` |
@@ -98,6 +98,7 @@ The shared LoRa transport is configured for the Heltec V3 onboard radio:
 
 From [esp_datasheet.png](c:/Users/Lenovo/Desktop/Sperenza/Spring_2026/iot/group_project/docs/esp_datasheet.png):
 
+- `GPIO3` is on `J3-14`
 - `GPIO4` is on `J3-15`
 - `GPIO5` is on `J3-16`
 - `GPIO6` is on `J3-17`

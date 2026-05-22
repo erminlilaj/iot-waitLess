@@ -62,7 +62,7 @@ namespace node_a {
 
 // Bench-test wiring for the side-A sensing ESP32.
 constexpr UltrasonicPins kFarSensor = {
-    4,
+    3,
     5,
 };
 

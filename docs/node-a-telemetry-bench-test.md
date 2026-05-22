@@ -22,7 +22,7 @@ Use the pin map in:
 
 For `Node A`, the planned sensor pins are:
 
-- far ultrasonic sensor: `TRIG 4`, `ECHO 5`
+- far ultrasonic sensor: `TRIG 3`, `ECHO 5`
 - near ultrasonic sensor: `TRIG 6`, `ECHO 7`
 
 ## Serial Monitor Settings
