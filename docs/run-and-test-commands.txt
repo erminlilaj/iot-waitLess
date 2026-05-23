@@ -177,6 +177,15 @@ This is the terminal view to record for the final demo video.
 ---
 REAL ROAD VISUAL SIMULATOR REPLAY
 
+Recommended final-demo command:
+python simulation\visual_simulator.py
+
+Inside the simulator choose:
+- CSV replay + Use Default: replay the validated road CSV inside the main simulator
+- Load CSV: choose another saved road file
+- Direct queues: manually set Side A / Side B queue counts
+- Random: generate automatic synthetic traffic pressure
+
 Run the normal visual simulator with car counts from the validated crossroad dataset.
 Cars enter from outside the crossroad and pass the far/near sensors normally; the CSV controls traffic pressure:
 python simulation\visual_simulator_real_data.py --csv data\data_readed\road_26-05-19_crossroads.csv

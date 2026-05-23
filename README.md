@@ -109,8 +109,18 @@ The visual simulator groups north/south as one adaptive phase and east/west as t
 Inside the GUI you can now choose between:
 
 - `Scenario`: the original scripted traffic pattern
-- `Manual`: set the car frequency for north, south, east, and west yourself
+- `CSV replay`: load the real road CSV inside the simulator and replay the measured queue pressure
+- `Direct queues`: choose the visible Side A / Side B queue counts yourself for a controlled explanation
+- `Manual rates`: set the car frequency for north, south, east, and west yourself
 - `Random`: let the simulator reshuffle traffic pressure automatically every few seconds
+
+For the final demo, the recommended path is now simply:
+
+```powershell
+python simulation/visual_simulator.py
+```
+
+Then select `CSV replay` and click `Use Default`, or click `Load CSV` to choose another saved road file.
 
 The latest visual version also replaces the old abstract sensor marks with ultrasonic-style modules, shows their capture zones, and pushes the far sensors farther from the intersection to better match the intended hardware story.
 
