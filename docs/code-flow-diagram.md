@@ -2,6 +2,12 @@
 
 This document explains what code calls what, where each output goes, where LoRa is transmitted/received, and how the real output becomes simulator input.
 
+## PPT Image
+
+Use this ready-made PNG in the presentation:
+
+![Wait Less code flow picture](code-flow-picture.png)
+
 ## 1. Full System Code Flow
 
 ```mermaid
