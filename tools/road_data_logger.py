@@ -28,6 +28,7 @@ except ImportError:  # pragma: no cover - only hit on machines without pyserial.
 
 
 FIELDS = [
+    # Common timing and source fields.
     "timestamp_iso",
     "elapsed_s",
     "node",
@@ -36,6 +37,7 @@ FIELDS = [
     "near_threshold_cm",
     "sensor_filter",
     "sensor_health",
+    # Queue and four-sensor fields used by the final live demo.
     "a_queue",
     "b_queue",
     "a_far_cm",
@@ -57,11 +59,13 @@ FIELDS = [
     "passed_count",
     "remote_source",
     "remote_stale",
+    # Resilience fields: Node A stale backup and recovery.
     "backup_mode",
     "backup_reason",
     "recovery_state",
     "green_side",
     "phase",
+    # Emergency button / ambulance priority fields.
     "emergency",
     "emergency_target",
     "button_override",
@@ -124,6 +128,7 @@ def blank_row(raw_line: str = "") -> dict[str, str]:
 
 
 def split_status_parts(line: str) -> dict[str, str]:
+    """Parse the key=value sections from an ESP32 STATUS line."""
     parts = [part.strip() for part in line.split("|")]
     values: dict[str, str] = {}
     for part in parts[1:]:
@@ -169,6 +174,7 @@ def parse_thresholds(value: str) -> tuple[str, str]:
 
 
 def parse_status_line(line: str) -> dict[str, str]:
+    """Convert one human-readable firmware log line into one CSV row."""
     row = blank_row(line)
     text = line.strip()
 
@@ -280,6 +286,7 @@ def set_binary(value: str) -> str | None:
 
 
 def serial_command_from_input(command: str) -> str | None:
+    """Return an ESP32 command when user input should be forwarded to serial."""
     lower = command.strip().lower()
     if not lower:
         return None
@@ -318,6 +325,7 @@ def serial_command_from_input(command: str) -> str | None:
 
 
 def handle_label_command(command: str, labels: LabelState) -> tuple[bool, str]:
+    """Update manual truth labels typed during road data collection."""
     normalized = command.strip()
     lower = normalized.lower()
     if not lower:
@@ -371,6 +379,7 @@ def state_label(value: str) -> str:
 
 
 def detection_result(row: dict[str, str]) -> str:
+    """Score the current row against the active manual vehicle/empty label."""
     truth = row.get("truth_any_vehicle", "")
     if truth not in {"0", "1"}:
         return "-"

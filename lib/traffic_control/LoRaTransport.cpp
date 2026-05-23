@@ -19,6 +19,7 @@ SPIClass radioSpi(HSPI);
 #else
 SPIClass radioSpi(FSPI);
 #endif
+// Heltec V3 exposes the SX1262 on fixed board pins defined in HardwareMap.h.
 SX1262 radio = new Module(
     hw::heltec_v3::kLoRaRadio.cs,
     hw::heltec_v3::kLoRaRadio.irq,
@@ -56,6 +57,7 @@ bool radioReady = false;
 
 bool loRaBegin(bool startReceiving, Stream& debug) {
 #if WAITLESS_RADIOLIB_BACKEND
+  // SPI and radio settings are centralized here so both nodes use the same link.
   radioSpi.begin(
       hw::heltec_v3::kLoRaSpi.sck,
       hw::heltec_v3::kLoRaSpi.miso,
@@ -102,6 +104,7 @@ bool loRaSendText(const String& payload, Stream& debug) {
     return false;
   }
 
+  // Transmit is blocking and short because payloads are compact telemetry lines.
   const int16_t state = radio.transmit(payload.c_str());
   if (state != RADIOLIB_ERR_NONE) {
     debug.print("[LoRa] transmit failed, code ");
@@ -129,6 +132,7 @@ bool loRaTryReceive(LoRaRxPacket& packet, Stream& debug) {
   packet.rssi = radio.getRSSI();
   packet.snr = radio.getSNR();
 
+  // Immediately return to receive mode so Node B keeps listening continuously.
   restartReceive(debug);
 
   if (state != RADIOLIB_ERR_NONE) {

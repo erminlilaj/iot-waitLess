@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include <stdio.h>
 
+// Node B is the controller node. It reads side-B sensors, receives side-A LoRa
+// telemetry from Node A, drives both traffic-light heads, and prints the live
+// evidence log used in the demo.
+
 #include "AdaptiveController.h"
 #include "DebugSupport.h"
 #include "LoRaTransport.h"
@@ -34,6 +38,8 @@ AdaptiveController controller(makeControllerConfig());
 
 SideTelemetry remoteTelemetry;
 
+// Emergency and backup state is separated from raw LoRa telemetry so Node B can
+// override behavior safely without modifying the last received packet.
 bool localEmergencyRequested = false;
 bool remoteEmergencyRequested = false;
 bool remoteTelemetryInjected = false;
@@ -89,6 +95,8 @@ const char* recoveryStateLabel() {
 }
 
 void setNodeABackupActive(bool active, const char* reason) {
+  // Backup/recovery events are printed only when the mode changes. This keeps
+  // the live log readable while still making failures visible.
   if (nodeABackupActive == active) {
     if (active) {
       nodeABackupReason = reason;
@@ -114,6 +122,7 @@ SideTelemetry applyRemoteEmergencyOverride(SideTelemetry telemetry) {
 }
 
 SideTelemetry makeNodeABackupTelemetry(uint32_t nowMs) {
+  // Conservative fallback: do not assume Side A is empty when Node A is stale.
   SideTelemetry telemetry = makeRemoteTelemetry(false, false, false, kBackupRemoteQueue, nowMs);
   telemetry.farDistanceCm = 999.0f;
   telemetry.nearDistanceCm = 999.0f;
@@ -366,6 +375,8 @@ void activateEmergencyTarget(SideId targetSide, const char* sourceLabel, uint8_t
 }
 
 void processEmergencyButton(uint32_t nowMs) {
+  // The button is active LOW with INPUT_PULLUP. Debounce and click-window logic
+  // turns one physical input into B emergency, A emergency, or clear.
   const bool rawPressed = digitalRead(hw::node_b::kEmergencyButton) == LOW;
 
   if (rawPressed != emergencyButtonLastRawPressed) {
@@ -802,6 +813,7 @@ void setup() {
   Serial.begin(115200);
   Serial.setTimeout(25);
 
+  // Node B owns all actuator pins in the current prototype.
   pinMode(hw::node_b::kFarSensor.trig, OUTPUT);
   pinMode(hw::node_b::kFarSensor.echo, INPUT);
   pinMode(hw::node_b::kNearSensor.trig, OUTPUT);
@@ -859,6 +871,8 @@ void setup() {
 void loop() {
   const uint32_t nowMs = millis();
   LoRaRxPacket packet;
+  // Radio reception runs before sensing so the controller uses the freshest
+  // available Node A telemetry in this loop iteration.
   if (loRaTryReceive(packet, Serial)) {
     SideTelemetry receivedTelemetry;
     if (parseTelemetryLine(packet.payload, receivedTelemetry) && receivedTelemetry.side == SideId::A) {
@@ -916,6 +930,8 @@ void loop() {
   localTelemetry.farDistanceCm = farDistance;
   localTelemetry.nearDistanceCm = nearDistance;
   const SideTelemetry remoteTelemetryNow = effectiveRemoteTelemetry(nowMs);
+  // One controller update combines real side-B sensing, remote side-A data,
+  // emergency requests, and backup mode into final traffic-light outputs.
   const TrafficDecision decision = controller.update(remoteTelemetryNow, localTelemetry, nowMs);
   lastFarDistanceCm = farDistance;
   lastNearDistanceCm = nearDistance;
@@ -933,6 +949,7 @@ void loop() {
     lastStatusMs = nowMs;
 
     if (logMode == LogMode::Summary) {
+      // This is the main demo evidence line parsed by tools/road_data_logger.py.
       Serial.print("B STATUS | A_queue=");
       Serial.print(remoteTelemetryNow.estimatedQueue);
       Serial.print(" | B_queue=");

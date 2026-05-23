@@ -9,6 +9,9 @@ struct ControllerConfig {
   uint32_t advantageMargin = 4;
 };
 
+// Queue-aware two-phase controller.
+// It keeps the current green for a minimum time, switches through yellow,
+// and lets emergency requests override normal demand scoring.
 class AdaptiveController {
  public:
  explicit AdaptiveController(ControllerConfig config = {});

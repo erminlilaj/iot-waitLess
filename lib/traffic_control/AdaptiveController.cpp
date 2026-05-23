@@ -7,10 +7,12 @@ TrafficDecision AdaptiveController::update(const SideTelemetry& sideA, const Sid
   uint32_t phaseElapsedMs = nowMs - phaseStartedMs_;
   const SideTelemetry& emergencyPriority = selectEmergencyPriority(sideA, sideB);
 
+  // If an emergency appears during yellow, finish yellow but target that side next.
   if (phase_ == SignalPhase::Yellow && hasEmergency(emergencyPriority)) {
     pendingGreenSide_ = emergencyPriority.side;
   }
 
+  // Yellow is always completed before changing green, even for emergency priority.
   if (phase_ == SignalPhase::Yellow && phaseElapsedMs >= config_.yellowMs) {
     switchGreen(nowMs);
   }
@@ -26,6 +28,8 @@ TrafficDecision AdaptiveController::update(const SideTelemetry& sideA, const Sid
         beginYellow(emergencyPriority.side, nowMs);
       }
     } else {
+      // Normal adaptive rule: switch only after minimum green and only when
+      // the other side has meaningful demand or current side is empty.
       const bool canSwitch = phaseElapsedMs >= config_.minGreenMs;
       const bool currentEmpty = !hasDemand(current);
       const bool otherBusy = hasDemand(other);
@@ -47,6 +51,8 @@ const SideTelemetry& AdaptiveController::selectEmergencyPriority(
     const SideTelemetry& sideA,
     const SideTelemetry& sideB) const {
   if (hasEmergency(sideA) && hasEmergency(sideB)) {
+    // If both sides request emergency priority, keep the current green side
+    // to avoid unnecessary oscillation.
     return greenSide_ == SideId::A ? sideA : sideB;
   }
 

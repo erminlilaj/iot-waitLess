@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+// Minimal INA219 support used only for measured energy evidence.
 struct Ina219Reading {
   bool ok = false;
   float busVoltageV = 0.0f;

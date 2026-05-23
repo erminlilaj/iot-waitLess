@@ -11,6 +11,8 @@ constexpr uint8_t kRegShuntVoltage = 0x01;
 constexpr uint8_t kRegBusVoltage = 0x02;
 constexpr uint16_t kConfig32V320Mv12BitContinuous = 0x399F;
 
+// The INA219 is optional. If it is not present, firmware keeps running and
+// reports INA219_NA so the live demo is not blocked by the energy sensor.
 uint8_t gAddress = config::kIna219Address;
 bool gAvailable = false;
 
@@ -49,6 +51,7 @@ bool ina219Begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address, Stream& out) {
   uint16_t configValue = 0;
   gAvailable = readRegister(kRegConfig, configValue);
   if (gAvailable) {
+    // Continuous 12-bit bus/shunt measurements are enough for average current.
     gAvailable = writeRegister(kRegConfig, kConfig32V320Mv12BitContinuous);
   }
 
@@ -86,6 +89,7 @@ Ina219Reading ina219Read() {
 
   const int16_t signedShunt = static_cast<int16_t>(rawShunt);
   reading.ok = true;
+  // Datasheet conversion: bus LSB is 4 mV and shunt LSB is 10 uV.
   reading.busVoltageV = static_cast<float>((rawBus >> 3) * 4) / 1000.0f;
   reading.shuntVoltageMv = static_cast<float>(signedShunt) * 0.01f;
   reading.currentMa = (reading.shuntVoltageMv / config::kIna219ShuntOhms);

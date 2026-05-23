@@ -2,6 +2,8 @@
 
 namespace {
 
+// The median filter uses a tiny fixed array because the ESP32 loop runs often
+// and we only need a few samples to reject one-off ultrasonic spikes.
 void swapFloat(float& left, float& right) {
   const float temp = left;
   left = right;
@@ -21,6 +23,7 @@ void sortSmall(float* values, uint8_t count) {
 }  // namespace
 
 float readUltrasonicDistanceCm(uint8_t trigPin, uint8_t echoPin, unsigned long timeoutUs) {
+  // HC-SR04 trigger pulse: hold low, send a 10 us high pulse, then measure echo.
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
@@ -29,9 +32,11 @@ float readUltrasonicDistanceCm(uint8_t trigPin, uint8_t echoPin, unsigned long t
 
   const unsigned long durationUs = pulseIn(echoPin, HIGH, timeoutUs);
   if (durationUs == 0) {
+    // 999 cm is a sentinel for timeout/no echo; it is treated as FREE and invalid.
     return 999.0f;
   }
 
+  // Speed of sound is about 0.0343 cm/us; divide by two for round trip.
   return static_cast<float>(durationUs) * 0.0343f / 2.0f;
 }
 
@@ -98,6 +103,7 @@ bool OccupancyDebouncer::update(bool rawOccupied, uint8_t requiredSamples) {
     ++candidateCount_;
   }
 
+  // Only commit the new state after enough consecutive matching samples.
   if (candidateCount_ >= requiredSamples) {
     stableOccupied_ = rawOccupied;
     candidateCount_ = 0;
@@ -122,6 +128,7 @@ SensorReading readFilteredUltrasonicSensor(
     uint8_t debounceSamples,
     unsigned long timeoutUs) {
   SensorReading reading;
+  // The final occupancy state is median filtered, thresholded, then debounced.
   reading.distanceCm = readMedianUltrasonicDistanceCm(trigPin, echoPin, medianSampleCount, timeoutUs);
   reading.rawOccupied = isDistanceOccupied(reading.distanceCm, thresholdCm);
   reading.stableOccupied = debouncer.update(reading.rawOccupied, debounceSamples);
@@ -134,6 +141,7 @@ void SensorHealthTracker::update(float distanceCm) {
   health_.lastValid = valid;
 
   if (valid) {
+    // A valid echo clears the consecutive-failure streak.
     health_.consecutiveInvalid = 0;
     return;
   }

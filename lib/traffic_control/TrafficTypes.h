@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 
+// Shared data model used by both firmware nodes and the simulator tests.
+// Keeping these types small makes LoRa telemetry compact and easy to log.
+
 enum class SideId : uint8_t {
   A = 0,
   B = 1,
@@ -26,6 +29,8 @@ struct SideTelemetry {
   bool farOccupied = false;
   bool nearOccupied = false;
   bool emergencyRequested = false;
+  // incomingCount and passedCount are cumulative counters used to derive
+  // a queue estimate without storing every individual vehicle event.
   uint32_t incomingCount = 0;
   uint32_t passedCount = 0;
   uint32_t estimatedQueue = 0;
@@ -55,6 +60,7 @@ inline const char* sideName(SideId side) {
 }
 
 inline uint32_t demandScore(const SideTelemetry& telemetry) {
+  // Queue length matters most, while far/near detections add short-term demand.
   const uint32_t queueWeight = telemetry.estimatedQueue * 3U;
   const uint32_t incomingWeight = telemetry.farOccupied ? 2U : 0U;
   const uint32_t stopLineWeight = telemetry.nearOccupied ? 4U : 0U;
@@ -72,6 +78,7 @@ inline bool hasEmergency(const SideTelemetry& telemetry) {
 inline LightOutput makeLights(SideId greenSide, SignalPhase phase) {
   LightOutput output;
 
+  // Only one side can be green/yellow at a time. The opposite side is red.
   if (greenSide == SideId::A) {
     output.aGreen = phase == SignalPhase::Green;
     output.aYellow = phase == SignalPhase::Yellow;

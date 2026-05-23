@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+// One ultrasonic reading after filtering and debounce.
 struct SensorReading {
   float distanceCm = 999.0f;
   bool rawOccupied = false;
@@ -17,6 +18,7 @@ struct SensorHealth {
 
 class OccupancyDebouncer {
  public:
+  // Requires repeated agreement before changing the stable occupancy state.
   bool update(bool rawOccupied, uint8_t requiredSamples);
   void reset(bool occupied = false);
 
@@ -29,6 +31,7 @@ class OccupancyDebouncer {
 
 class SensorHealthTracker {
  public:
+  // Tracks repeated invalid readings so wiring/angle failures become visible.
   void update(float distanceCm);
   void reset();
   const SensorHealth& snapshot() const;

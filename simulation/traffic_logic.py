@@ -1,3 +1,9 @@
+"""Pure-Python version of the adaptive traffic controller.
+
+The simulator and graph scripts use this file so we can compare the firmware
+logic against repeatable desktop runs without flashing hardware.
+"""
+
 from dataclasses import dataclass
 from enum import Enum
 
@@ -33,6 +39,7 @@ class Decision:
 
 
 def demand_score(telemetry: SideTelemetry) -> int:
+    # Match the firmware weights: queue dominates, far/near sensors add demand.
     return telemetry.estimated_queue * 3 + (2 if telemetry.far_occupied else 0) + (4 if telemetry.near_occupied else 0)
 
 
@@ -53,6 +60,7 @@ class AdaptiveController:
     def update(self, side_a: SideTelemetry, side_b: SideTelemetry, now_ms: int) -> Decision:
         elapsed_ms = now_ms - self.phase_started_ms
 
+        # Yellow is a safety transition; complete it before changing green side.
         if self.phase == Phase.YELLOW and elapsed_ms >= self.yellow_ms:
             self.green_side = Side.B if self.green_side == Side.A else Side.A
             self.phase = Phase.GREEN
@@ -63,6 +71,8 @@ class AdaptiveController:
         elapsed_ms = now_ms - self.phase_started_ms
 
         if self.phase == Phase.GREEN:
+            # The controller only switches after minimum green and when the
+            # other side has demand, is clearly busier, or has waited too long.
             can_switch = elapsed_ms >= self.min_green_ms
             current_empty = not has_demand(current)
             other_busy = has_demand(other)
@@ -82,4 +92,3 @@ class AdaptiveController:
             other_demand=demand_score(other),
             elapsed_ms=now_ms - self.phase_started_ms,
         )
-

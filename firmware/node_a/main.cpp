@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include <stdio.h>
 
+// Node A is the side-A sensing node. It reads two ultrasonic sensors, estimates
+// queue pressure for its side, and sends compact LoRa telemetry to Node B.
+
 #include "DebugSupport.h"
 #include "LoRaTransport.h"
 #include "NodeMessaging.h"
@@ -13,6 +16,8 @@
 namespace {
 
 LaneEstimator laneEstimator;
+
+// Runtime state is kept explicit so it can be printed in status/report logs.
 bool emulationEnabled = false;
 bool emulatedFarOccupied = false;
 bool emulatedNearOccupied = false;
@@ -37,6 +42,8 @@ SensorHealthTracker farHealth;
 SensorHealthTracker nearHealth;
 
 void sendTelemetryOverLoRa(const String& payload) {
+  // The payload is saved even if radio transmission fails so the serial log
+  // still shows exactly what would have been sent.
   lastPayload = payload;
   lastTxUsedRadio = loRaSendText(payload, Serial);
 }
@@ -380,6 +387,8 @@ void setup() {
   Serial.begin(115200);
   Serial.setTimeout(25);
 
+  // Sensor pins are defined in one shared hardware map to avoid drift between
+  // the wiring diagram and firmware.
   pinMode(hw::node_a::kFarSensor.trig, OUTPUT);
   pinMode(hw::node_a::kFarSensor.echo, INPUT);
   pinMode(hw::node_a::kNearSensor.trig, OUTPUT);
@@ -405,6 +414,8 @@ void setup() {
 }
 
 void loop() {
+  // Serial commands are used for bench tests, threshold tuning, and emergency
+  // emulation without reflashing the board.
   if (Serial.available()) {
     const String input = Serial.readStringUntil('\n');
     handleBenchCommand(input);
@@ -423,6 +434,7 @@ void loop() {
   bool nearOccupied = false;
 
   if (emulationEnabled) {
+    // Emulation mode feeds known states into the same estimator used by sensors.
     farOccupied = emulatedFarOccupied;
     nearOccupied = emulatedNearOccupied;
   } else {
@@ -463,6 +475,8 @@ void loop() {
   if (nowMs - lastTelemetryMs >= config::kTelemetryIntervalMs) {
     lastTelemetryMs = nowMs;
 
+    // Node B only needs the compact telemetry payload; the longer STATUS line
+    // is for human-readable evidence and CSV logging.
     const String payload = encodeTelemetry(telemetry);
     sendTelemetryOverLoRa(payload);
 

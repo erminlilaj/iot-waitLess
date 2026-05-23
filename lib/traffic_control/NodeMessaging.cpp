@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 String encodeTelemetry(const SideTelemetry& telemetry) {
+  // A short CSV payload is easy to inspect in serial logs and cheap to send over LoRa.
   return String(sideName(telemetry.side)) + "," + String(telemetry.farOccupied ? 1 : 0) + "," +
          String(telemetry.nearOccupied ? 1 : 0) + "," + String(telemetry.incomingCount) + "," +
          String(telemetry.passedCount) + "," + String(telemetry.estimatedQueue) + "," +
@@ -37,6 +38,7 @@ bool decodeTelemetry(const String& payload, SideTelemetry& telemetry) {
       &nearDistanceCm);
 
   if (matched != 10) {
+    // Backward compatibility with older firmware that did not send distances.
     matched = sscanf(
         payload.c_str(),
         "%c,%d,%d,%lu,%lu,%lu,%d,%lu",
@@ -51,6 +53,7 @@ bool decodeTelemetry(const String& payload, SideTelemetry& telemetry) {
   }
 
   if (matched != 10 && matched != 8) {
+    // Backward compatibility with the earliest payload without emergency flag.
     matched = sscanf(
         payload.c_str(),
         "%c,%d,%d,%lu,%lu,%lu,%lu",
