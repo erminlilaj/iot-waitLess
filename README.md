@@ -63,6 +63,7 @@ The waiting-pressure estimate is a digital-twin comparison: the same real road d
 - `docs/live-demo-log-format.md`: final four-sensor live-demo terminal/CSV format
 - `docs/code-understanding-guide.md`: professor-friendly guide to the firmware, tools, simulator, and data flow
 - `docs/code-flow-diagram.md`: Mermaid diagrams showing firmware, LoRa, logger, CSV, and simulator code flow
+- `docs/technical-section-slide-assets.md`: slide-ready pictures for the architecture, LoRa, algorithm, software, and simulator section
 - `tools/final_presentation_graphs.py`: generates final graph PNGs for the presentation
 - `data/data_readed/presentation_graphs/`: final slide-ready graph images
 
