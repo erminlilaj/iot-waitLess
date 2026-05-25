@@ -52,6 +52,7 @@ SMALL = font(17)
 TINY = font(15)
 MONO = font(18)
 MONO_BOLD = font(18, True)
+ESP_IMAGE = ROOT / "docs" / "esp.png"
 
 
 def new_canvas(title: str, subtitle: str) -> tuple[Image.Image, ImageDraw.ImageDraw]:
@@ -128,6 +129,58 @@ def label(draw: ImageDraw.ImageDraw, x: int, y: int, text: str, color: str) -> N
     bbox = draw.textbbox((x, y), text, font=SMALL)
     rounded(draw, (bbox[0] - 12, bbox[1] - 7, bbox[2] + 12, bbox[3] + 7), SURFACE, color, 2, 14)
     draw.text((x, y), text, fill=color, font=SMALL)
+
+
+def paste_fit(base: Image.Image, image_path: Path, box: tuple[int, int, int, int]) -> None:
+    if not image_path.exists():
+        return
+    src = Image.open(image_path).convert("RGBA")
+    target_w = box[2] - box[0]
+    target_h = box[3] - box[1]
+    src.thumbnail((target_w, target_h), Image.Resampling.LANCZOS)
+    x = box[0] + (target_w - src.width) // 2
+    y = box[1] + (target_h - src.height) // 2
+    base.paste(src, (x, y), src)
+
+
+def draw_ultrasonic_module(draw: ImageDraw.ImageDraw, x: int, y: int, scale: float = 1.0) -> None:
+    w = int(118 * scale)
+    h = int(56 * scale)
+    rounded(draw, (x, y, x + w, y + h), "#155EEF", "#0B3B8C", 2, int(8 * scale))
+    draw.rectangle((x + int(40 * scale), y + h, x + int(78 * scale), y + h + int(18 * scale)), fill="#1F2937")
+    for pin_x in [48, 58, 68]:
+        draw.rectangle((x + int(pin_x * scale), y + h + int(18 * scale), x + int((pin_x + 4) * scale), y + h + int(32 * scale)), fill="#111827")
+    for cx in [34, 84]:
+        cx_s = x + int(cx * scale)
+        cy_s = y + int(29 * scale)
+        draw.ellipse((cx_s - int(20 * scale), cy_s - int(20 * scale), cx_s + int(20 * scale), cy_s + int(20 * scale)), fill="#D1D5DB", outline="#475467", width=max(1, int(2 * scale)))
+        draw.ellipse((cx_s - int(12 * scale), cy_s - int(12 * scale), cx_s + int(12 * scale), cy_s + int(12 * scale)), fill="#111827", outline="#98A2B3", width=max(1, int(2 * scale)))
+        draw.ellipse((cx_s - int(6 * scale), cy_s - int(6 * scale), cx_s + int(6 * scale), cy_s + int(6 * scale)), fill="#2F3846")
+    draw.text((x + int(28 * scale), y + int(4 * scale)), "HC-SR04", fill="#FFFFFF", font=TINY)
+
+
+def draw_ina219_module(draw: ImageDraw.ImageDraw, x: int, y: int, scale: float = 1.0) -> None:
+    w = int(138 * scale)
+    h = int(82 * scale)
+    rounded(draw, (x, y, x + w, y + h), "#1D4ED8", "#0B3B8C", 2, int(9 * scale))
+    draw.text((x + int(36 * scale), y + int(8 * scale)), "INA219", fill="#FFFFFF", font=TINY)
+    draw.rectangle((x + int(18 * scale), y + int(34 * scale), x + int(120 * scale), y + int(47 * scale)), fill="#D1D5DB", outline="#667085")
+    draw.rectangle((x + int(27 * scale), y + int(57 * scale), x + int(62 * scale), y + int(74 * scale)), fill="#F97316", outline="#9A3412")
+    draw.rectangle((x + int(76 * scale), y + int(57 * scale), x + int(111 * scale), y + int(74 * scale)), fill="#F97316", outline="#9A3412")
+    for idx, label_text in enumerate(["VCC", "GND", "SDA", "SCL"]):
+        px = x + int((16 + idx * 29) * scale)
+        draw.ellipse((px, y + int(18 * scale), px + int(8 * scale), y + int(26 * scale)), fill="#FDE68A", outline="#92400E")
+        draw.text((px - int(5 * scale), y + int(28 * scale)), label_text, fill="#FFFFFF", font=font(max(8, int(9 * scale)), True))
+
+
+def draw_laptop_icon(draw: ImageDraw.ImageDraw, x: int, y: int, scale: float = 1.0) -> None:
+    w = int(170 * scale)
+    h = int(110 * scale)
+    rounded(draw, (x, y, x + w, y + int(82 * scale)), "#172033", "#475467", 2, int(10 * scale))
+    rounded(draw, (x + int(12 * scale), y + int(12 * scale), x + w - int(12 * scale), y + int(70 * scale)), "#DDF8F2", TEAL, 2, int(5 * scale))
+    draw.text((x + int(28 * scale), y + int(30 * scale)), "B STATUS", fill=TEAL, font=TINY)
+    draw.rectangle((x - int(16 * scale), y + int(82 * scale), x + w + int(16 * scale), y + int(98 * scale)), fill="#CBD5E1", outline="#667085")
+    draw.rectangle((x + int(52 * scale), y + int(86 * scale), x + int(118 * scale), y + int(92 * scale)), fill="#94A3B8")
 
 
 def save(image: Image.Image, name: str) -> Path:
@@ -350,10 +403,10 @@ def render_hardware_network() -> None:
         440,
         170,
         "Side A physical sensors",
-        "2x HC-SR04 ultrasonic modules\nA_far: approaching vehicle\nA_near: stop-line / queue\nDemo threshold: 50 cm",
+        "2x HC-SR04 modules\nA_far: approaching vehicle\nA_near: stop-line / queue\nDemo threshold: 50 cm",
         BLUE,
         WASH_BLUE,
-        36,
+        30,
     )
     node_a = card(
         draw,
@@ -362,10 +415,10 @@ def render_hardware_network() -> None:
         440,
         235,
         "Node A - sensing node",
-        "Heltec WiFi LoRa 32 V3\nESP32-S3 + onboard SX1262\nRuns firmware/node_a\nEstimates Side A queue\nTransmits telemetry to Node B",
+        "Heltec WiFi LoRa 32 V3\nSide A queue estimator\nLoRa telemetry TX",
         BLUE,
         SURFACE,
-        36,
+        28,
     )
 
     lora = card(
@@ -388,10 +441,10 @@ def render_hardware_network() -> None:
         620,
         230,
         "Laptop evidence pipeline",
-        "USB serial from Node B\nroad_data_logger.py saves live CSV\nfinal_evidence_report.py calculates TP/TN/FP/FN, accuracy, stale %, and energy\nvisual_simulator.py replays real queue pressure",
+        "USB serial from Node B\nroad_data_logger.py saves live CSV\nfinal_evidence_report.py: TP/TN/FP/FN, accuracy, stale %, energy\nvisual_simulator.py replays real queue pressure",
         TEAL,
         WASH_TEAL,
-        56,
+        48,
     )
 
     sensor_b = card(
@@ -401,10 +454,10 @@ def render_hardware_network() -> None:
         440,
         170,
         "Side B physical sensors",
-        "2x HC-SR04 ultrasonic modules\nB_far: approaching vehicle\nB_near: stop-line / queue\nDemo threshold: 50 cm",
+        "2x HC-SR04 modules\nB_far: approaching vehicle\nB_near: stop-line / queue\nDemo threshold: 50 cm",
         GREEN,
         WASH_GREEN,
-        36,
+        30,
     )
     node_b = card(
         draw,
@@ -413,10 +466,10 @@ def render_hardware_network() -> None:
         440,
         250,
         "Node B - controller node",
-        "Heltec WiFi LoRa 32 V3\nReads Side B sensors\nReceives Node A LoRa telemetry\nRuns adaptive controller\nEmergency button on GPIO3 / J3-14",
+        "Heltec WiFi LoRa 32 V3\nSide B + LoRa RX\nControls lights + button",
         GREEN,
         SURFACE,
-        36,
+        28,
     )
     actuators = card(
         draw,
@@ -443,6 +496,16 @@ def render_hardware_network() -> None:
         WASH_PURPLE,
         38,
     )
+
+    # Component pictures inside the diagram cards.
+    draw_ultrasonic_module(draw, 372, 318, 0.82)
+    draw.text((427, 386), "x2", fill=BLUE, font=H2)
+    paste_fit(image, ESP_IMAGE, (190, 615, 500, 730))
+    draw_ultrasonic_module(draw, 1692, 318, 0.82)
+    draw.text((1747, 386), "x2", fill=GREEN, font=H2)
+    paste_fit(image, ESP_IMAGE, (1540, 640, 1815, 735))
+    draw_laptop_icon(draw, 1060, 760, 0.85)
+    draw_ina219_module(draw, 356, 835, 0.86)
 
     # Hardware signal arrows.
     arrow(draw, ((sensor_a[0] + sensor_a[2]) // 2, sensor_a[3] + 22), ((node_a[0] + node_a[2]) // 2, node_a[1] - 22), BLUE, 6)
