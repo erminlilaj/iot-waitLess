@@ -337,12 +337,159 @@ def render_digital_twin() -> None:
     save(image, "05-real-data-simulator-loop.png")
 
 
+def render_hardware_network() -> None:
+    image, draw = new_canvas(
+        "Main Hardware Components + Network Diagram",
+        "Live-demo prototype: two ESP32 LoRa nodes, four ultrasonic sensors, traffic-light LEDs, emergency input, logging, and energy measurement.",
+    )
+
+    sensor_a = card(
+        draw,
+        80,
+        245,
+        440,
+        170,
+        "Side A physical sensors",
+        "2x HC-SR04 ultrasonic modules\nA_far: approaching vehicle\nA_near: stop-line / queue\nDemo threshold: 50 cm",
+        BLUE,
+        WASH_BLUE,
+        36,
+    )
+    node_a = card(
+        draw,
+        80,
+        505,
+        440,
+        235,
+        "Node A - sensing node",
+        "Heltec WiFi LoRa 32 V3\nESP32-S3 + onboard SX1262\nRuns firmware/node_a\nEstimates Side A queue\nTransmits telemetry to Node B",
+        BLUE,
+        SURFACE,
+        36,
+    )
+
+    lora = card(
+        draw,
+        650,
+        305,
+        620,
+        245,
+        "Wireless network",
+        "LoRa 868 MHz link\nDirection: Node A -> Node B\nPacket contains queue, far/near occupancy, distances, emergency flag, and timestamp\nNode B checks freshness before control",
+        AMBER,
+        WASH_AMBER,
+        56,
+    )
+
+    laptop = card(
+        draw,
+        650,
+        675,
+        620,
+        230,
+        "Laptop evidence pipeline",
+        "USB serial from Node B\nroad_data_logger.py saves live CSV\nfinal_evidence_report.py calculates TP/TN/FP/FN, accuracy, stale %, and energy\nvisual_simulator.py replays real queue pressure",
+        TEAL,
+        WASH_TEAL,
+        56,
+    )
+
+    sensor_b = card(
+        draw,
+        1400,
+        245,
+        440,
+        170,
+        "Side B physical sensors",
+        "2x HC-SR04 ultrasonic modules\nB_far: approaching vehicle\nB_near: stop-line / queue\nDemo threshold: 50 cm",
+        GREEN,
+        WASH_GREEN,
+        36,
+    )
+    node_b = card(
+        draw,
+        1400,
+        505,
+        440,
+        250,
+        "Node B - controller node",
+        "Heltec WiFi LoRa 32 V3\nReads Side B sensors\nReceives Node A LoRa telemetry\nRuns adaptive controller\nEmergency button on GPIO3 / J3-14",
+        GREEN,
+        SURFACE,
+        36,
+    )
+    actuators = card(
+        draw,
+        1400,
+        795,
+        440,
+        145,
+        "Actuators",
+        "6 LEDs with resistors\nSide A: red/yellow/green\nSide B: red/yellow/green",
+        RED,
+        WASH_RED,
+        36,
+    )
+
+    energy = card(
+        draw,
+        80,
+        795,
+        440,
+        145,
+        "INA219 energy measurement",
+        "INA219 in 5V supply path\nNode A: 123.0 mA avg\nNode B: 174.8 mA avg",
+        PURPLE,
+        WASH_PURPLE,
+        38,
+    )
+
+    # Hardware signal arrows.
+    arrow(draw, ((sensor_a[0] + sensor_a[2]) // 2, sensor_a[3] + 22), ((node_a[0] + node_a[2]) // 2, node_a[1] - 22), BLUE, 6)
+    label(draw, 180, 450, "GPIO trigger/echo", BLUE)
+    arrow(draw, (node_a[2] + 28, 610), (lora[0] - 28, 430), AMBER, 7)
+    label(draw, 545, 500, "LoRa TX", AMBER)
+    arrow(draw, (lora[2] + 28, 430), (node_b[0] - 28, 610), AMBER, 7)
+    label(draw, 1298, 500, "LoRa RX", AMBER)
+    arrow(draw, ((sensor_b[0] + sensor_b[2]) // 2, sensor_b[3] + 22), ((node_b[0] + node_b[2]) // 2, node_b[1] - 22), GREEN, 6)
+    label(draw, 1500, 450, "GPIO trigger/echo", GREEN)
+    arrow(draw, ((node_b[0] + node_b[2]) // 2, node_b[3] + 20), ((actuators[0] + actuators[2]) // 2, actuators[1] - 20), RED, 6)
+    label(draw, 1515, 765, "GPIO LED outputs", RED)
+    poly_arrow(draw, [(1400, 685), (1315, 685), (1315, 790), (1270, 790)], TEAL, 6)
+    label(draw, 1278, 650, "USB serial log", TEAL)
+    arrow(draw, (960, 550), (960, 675), TEAL, 6)
+    label(draw, 985, 595, "saved evidence", TEAL)
+
+    # Small visual hints for the traffic-light heads.
+    for x in [1660, 1760]:
+        draw.rounded_rectangle((x, 835, x + 56, 902), radius=14, fill="#202833", outline="#667085", width=2)
+        for y, color in [(848, RED), (868, AMBER), (888, GREEN)]:
+            draw.ellipse((x + 20, y, x + 36, y + 16), fill=color, outline="#111827")
+    draw.text((1646, 910), "Side A", fill=MUTED, font=TINY)
+    draw.text((1746, 910), "Side B", fill=MUTED, font=TINY)
+
+    rounded(draw, (80, 950, 1840, 1015), "#FFFFFF", LINE, 3, 18)
+    wrapped(
+        draw,
+        110,
+        966,
+        "Voltage notes: boards and HC-SR04 sensors are powered from 5V; ESP32 GPIO is 3.3V logic, so each HC-SR04 ECHO line needs a divider or level shifter. LED outputs use current-limiting resistors.",
+        150,
+        INK,
+        SMALL,
+        22,
+    )
+
+    save(image, "06-hardware-network-diagram.png")
+
+
 def main() -> None:
     render_service_architecture()
     render_lora()
     render_algorithm()
     render_software_components()
     render_digital_twin()
+    render_hardware_network()
 
 
 if __name__ == "__main__":

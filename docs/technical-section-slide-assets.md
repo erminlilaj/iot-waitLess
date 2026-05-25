@@ -4,6 +4,12 @@ Use these pictures for the professor's required section:
 
 > The architecture of your service, the algorithms and software components (3-4 minute)
 
+For the separate required hardware/network slide:
+
+| Slide picture | What to say |
+| --- | --- |
+| `presentation_assets/06-hardware-network-diagram.png` | "The physical IoT system uses two Heltec ESP32 LoRa nodes. Node A measures Side A with two ultrasonic sensors and sends LoRa telemetry. Node B measures Side B, receives Node A, drives both traffic-light heads, sends the live log to the laptop, and was measured with INA219 for energy." |
+
 Recommended split:
 
 | Time | Slide picture | What to say |
@@ -28,5 +34,6 @@ If the presentation is short, merge the first and fourth pictures:
 - `docs/presentation_assets/03-adaptive-algorithm.png`
 - `docs/presentation_assets/04-software-components.png`
 - `docs/presentation_assets/05-real-data-simulator-loop.png`
+- `docs/presentation_assets/06-hardware-network-diagram.png`
 
 These files are 16:9 PNGs, so they can be used as full-slide images in PowerPoint.
