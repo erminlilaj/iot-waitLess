@@ -4,7 +4,9 @@ Use this deck section for the professor's software / algorithm part.
 
 PPTX file:
 
-- `docs/Wait_Less_Software_Section.pptx`
+- `docs/Wait_Less_Software_Section_UPDATED.pptx`
+
+Note: the original `docs/Wait_Less_Software_Section.pptx` was open in PowerPoint while this update was generated, so the updated copy was written with the `_UPDATED` suffix.
 
 ## Slide Order
 
@@ -15,16 +17,16 @@ PPTX file:
 | 3 | Shared code | Shared modules keep both nodes consistent: sensing, queue estimation, packets, controller, INA219. |
 | 4 | Algorithm | Demand score is explainable: `3*queue + 2*far + 4*near`, with safe timing and emergency rules. |
 | 5 | Communication before improving | The first approach sent full telemetry every 5 seconds; the improvement is to avoid repeated packets when traffic state is unchanged. |
-| 6 | Communication after improving | Final packet includes distances and emergency; Node B detects stale data and backup mode. Future heartbeat separates no cars / peak saturation from node failure. |
-| 7 | Power before / after | INA219 measured the baseline; adaptive duty cycling is the next optimization. Do not claim it is already measured. |
+| 6 | Communication after improving | Final packet includes distances and emergency; implemented heartbeat separates no cars / peak saturation from node failure. |
+| 7 | Power before / after | INA219 measured the baseline; heartbeat and peak communication modes are implemented, but the exact current reduction still needs a second INA219 measurement. |
 | 8 | Simulators | CSV replay connects real-road data to the visual simulator, making it a digital-twin replay. |
 
 ## Important Phrases To Say
 
 - "The simulator is not the evidence by itself; the evidence is the real CSV collected from the road."
 - "The first communication version only showed that a packet could be sent. The final version sends useful state and handles stale data."
-- "The energy-aware communication idea is: active mode sends full telemetry, idle or peak-saturated mode sends heartbeat only, and Node B keeps controlling the lights locally."
-- "For energy, the measured INA219 values are the baseline. Sleep and heartbeat are proposed improvements, with a known detection tradeoff."
+- "The implemented energy-aware communication is: active mode sends full telemetry, idle or peak-saturated mode sends heartbeat only, and Node B keeps controlling the lights locally."
+- "For energy, the measured INA219 values are the baseline. Heartbeat reduces repeated LoRa packets; sleep mode remains future work because HC-SR04 cannot wake the ESP32 alone."
 - "HC-SR04 cannot wake a sleeping ESP32 alone, because it needs a trigger pulse. True wake-on-car needs a low-power detector."
 
 ## Source Files Behind The Snippets

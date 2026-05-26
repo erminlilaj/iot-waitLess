@@ -8,7 +8,18 @@ namespace config {
 // detection remain consistent across the prototype.
 constexpr uint32_t kLoopIntervalMs = 200;
 constexpr uint32_t kTelemetryIntervalMs = 1000;
+constexpr uint32_t kHeartbeatIntervalMs = 10000;
+constexpr uint32_t kPeakHeartbeatIntervalMs = 15000;
 constexpr uint32_t kRemoteTelemetryTimeoutMs = 3000;
+constexpr uint32_t kRemoteHeartbeatTimeoutMs = 25000;
+
+// Peak windows come from the road observations. The prototype can enable them
+// manually during the demo; a deployed version would drive the same constants
+// from RTC or NTP time.
+constexpr uint8_t kMorningPeakStartHour = 9;
+constexpr uint8_t kMorningPeakEndHour = 11;
+constexpr uint8_t kEveningPeakStartHour = 16;
+constexpr uint8_t kEveningPeakEndHour = 19;
 
 // Live-demo thresholds. The validated road CSV was collected with 100/100 cm;
 // the 50/50 cm default makes classroom triggering more controlled.

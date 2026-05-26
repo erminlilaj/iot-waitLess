@@ -17,24 +17,39 @@ namespace {
 
 LaneEstimator laneEstimator;
 
+enum class EnergyTxMode : uint8_t {
+  ActiveTelemetry = 0,
+  IdleHeartbeat = 1,
+  PeakHeartbeat = 2,
+};
+
 // Runtime state is kept explicit so it can be printed in status/report logs.
 bool emulationEnabled = false;
 bool emulatedFarOccupied = false;
 bool emulatedNearOccupied = false;
 bool manualEmergencyRequested = false;
+bool manualPeakTrafficMode = false;
+bool autoPeakTrafficMode = false;
+int8_t demoHour = -1;
 LogMode logMode = LogMode::Summary;
 float farThresholdCm = config::kFarThresholdCm;
 float nearThresholdCm = config::kNearThresholdCm;
 uint32_t lastLoopMs = 0;
-uint32_t lastTelemetryMs = 0;
+uint32_t lastStatusMs = 0;
+uint32_t lastFullTelemetryMs = 0;
+uint32_t lastHeartbeatMs = 0;
 bool lastTxUsedRadio = false;
 bool hasSnapshot = false;
+bool hasLastSentTelemetry = false;
 float lastFarDistanceCm = 999.0f;
 float lastNearDistanceCm = 999.0f;
 bool lastFarOccupied = false;
 bool lastNearOccupied = false;
 SideTelemetry lastTelemetry;
+SideTelemetry lastSentTelemetry;
 String lastPayload;
+String lastTxPacketKind = "NONE";
+EnergyTxMode lastTxMode = EnergyTxMode::ActiveTelemetry;
 Ina219Reading lastPowerReading;
 OccupancyDebouncer farDebouncer;
 OccupancyDebouncer nearDebouncer;
@@ -45,7 +60,54 @@ void sendTelemetryOverLoRa(const String& payload) {
   // The payload is saved even if radio transmission fails so the serial log
   // still shows exactly what would have been sent.
   lastPayload = payload;
+  lastTxPacketKind = "TELEMETRY";
   lastTxUsedRadio = loRaSendText(payload, Serial);
+}
+
+void sendHeartbeatOverLoRa(EnergyTxMode mode, uint32_t nowMs) {
+  const HeartbeatMode heartbeatMode = mode == EnergyTxMode::PeakHeartbeat ? HeartbeatMode::Peak : HeartbeatMode::Idle;
+  lastPayload = encodeHeartbeat(SideId::A, heartbeatMode, nowMs);
+  lastTxPacketKind = heartbeatMode == HeartbeatMode::Peak ? "HEARTBEAT_PEAK" : "HEARTBEAT_IDLE";
+  lastTxUsedRadio = loRaSendText(lastPayload, Serial);
+}
+
+bool hourInPeakWindow(int8_t hour) {
+  return (hour >= config::kMorningPeakStartHour && hour < config::kMorningPeakEndHour) ||
+         (hour >= config::kEveningPeakStartHour && hour < config::kEveningPeakEndHour);
+}
+
+bool peakTrafficModeActive() {
+  return manualPeakTrafficMode || (autoPeakTrafficMode && demoHour >= 0 && hourInPeakWindow(demoHour));
+}
+
+const char* energyModeLabel(EnergyTxMode mode) {
+  if (mode == EnergyTxMode::IdleHeartbeat) {
+    return "IDLE_HEARTBEAT";
+  }
+  if (mode == EnergyTxMode::PeakHeartbeat) {
+    return "PEAK_HEARTBEAT";
+  }
+  return "ACTIVE_TELEMETRY";
+}
+
+EnergyTxMode chooseEnergyTxMode(const SideTelemetry& telemetry) {
+  if (telemetry.emergencyRequested) {
+    return EnergyTxMode::ActiveTelemetry;
+  }
+  if (peakTrafficModeActive()) {
+    return EnergyTxMode::PeakHeartbeat;
+  }
+  if (!hasDemand(telemetry)) {
+    return EnergyTxMode::IdleHeartbeat;
+  }
+  return EnergyTxMode::ActiveTelemetry;
+}
+
+bool trafficStateChanged(const SideTelemetry& current, const SideTelemetry& previous) {
+  return current.farOccupied != previous.farOccupied ||
+         current.nearOccupied != previous.nearOccupied ||
+         current.emergencyRequested != previous.emergencyRequested ||
+         current.estimatedQueue != previous.estimatedQueue;
 }
 
 void printBenchHelp() {
@@ -61,6 +123,12 @@ void printBenchHelp() {
   Serial.println("  filter");
   Serial.println("  health");
   Serial.println("  power");
+  Serial.println("  energy");
+  Serial.println("  peak_on");
+  Serial.println("  peak_off");
+  Serial.println("  peak_auto_on");
+  Serial.println("  peak_auto_off");
+  Serial.println("  set_demo_hour <0-23>");
   Serial.println("  ambulance_on");
   Serial.println("  ambulance_off");
   Serial.println("  state <far> <near>");
@@ -88,6 +156,34 @@ void printThresholds(Stream& out) {
   out.println(farThresholdCm, 1);
   out.print("near_threshold_cm: ");
   out.println(nearThresholdCm, 1);
+}
+
+void printEnergyStatus(Stream& out) {
+  printSectionHeader(out, "ENERGY COMMUNICATION");
+  out.print("manual_peak_mode: ");
+  out.println(onOffLabel(manualPeakTrafficMode));
+  out.print("auto_peak_mode: ");
+  out.println(onOffLabel(autoPeakTrafficMode));
+  out.print("demo_hour: ");
+  if (demoHour >= 0) {
+    out.println(demoHour);
+  } else {
+    out.println("NOT_SET");
+  }
+  out.print("peak_window: ");
+  out.print(config::kMorningPeakStartHour);
+  out.print("-");
+  out.print(config::kMorningPeakEndHour);
+  out.print(", ");
+  out.print(config::kEveningPeakStartHour);
+  out.print("-");
+  out.println(config::kEveningPeakEndHour);
+  out.print("current_tx_mode: ");
+  out.println(energyModeLabel(lastTxMode));
+  out.print("last_packet_kind: ");
+  out.println(lastTxPacketKind);
+  out.print("last_payload: ");
+  out.println(lastPayload.length() > 0 ? lastPayload : "NONE");
 }
 
 void printSensorFilterValue(Stream& out) {
@@ -241,10 +337,14 @@ void printStatusSnapshot(Stream& out) {
   out.println(lastTelemetry.estimatedQueue);
   out.print("ambulance_override: ");
   out.println(onOffLabel(lastTelemetry.emergencyRequested));
+  out.print("energy_tx_mode: ");
+  out.println(energyModeLabel(lastTxMode));
+  out.print("last_packet_kind: ");
+  out.println(lastTxPacketKind);
   out.print("tx_backend: ");
   out.println(txBackendLabel());
   out.print("last_payload: ");
-  out.println(lastPayload);
+  out.println(lastPayload.length() > 0 ? lastPayload : "NONE");
   out.print("power: ");
   printIna219Reading(out, lastPowerReading);
 }
@@ -280,10 +380,14 @@ void printReport(Stream& out) {
   out.println(lastTelemetry.estimatedQueue);
   out.print("ambulance_override: ");
   out.println(onOffLabel(lastTelemetry.emergencyRequested));
+  out.print("energy_tx_mode: ");
+  out.println(energyModeLabel(lastTxMode));
+  out.print("last_packet_kind: ");
+  out.println(lastTxPacketKind);
   out.print("tx_backend: ");
   out.println(txBackendLabel());
   out.print("payload: ");
-  out.println(lastPayload);
+  out.println(lastPayload.length() > 0 ? lastPayload : "NONE");
   out.print("power_bus_v: ");
   out.println(lastPowerReading.ok ? String(lastPowerReading.busVoltageV, 3) : "NA");
   out.print("power_current_ma: ");
@@ -327,6 +431,49 @@ bool handleBenchCommand(const String& rawCommand) {
     Serial.print("INA219 power: ");
     printIna219Reading(Serial, lastPowerReading);
     return false;
+  }
+
+  if (command.equalsIgnoreCase("energy")) {
+    printEnergyStatus(Serial);
+    return false;
+  }
+
+  if (command.equalsIgnoreCase("peak_on")) {
+    manualPeakTrafficMode = true;
+    Serial.println("Node A peak low-communication mode enabled.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("peak_off")) {
+    manualPeakTrafficMode = false;
+    Serial.println("Node A peak low-communication mode disabled.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("peak_auto_on")) {
+    autoPeakTrafficMode = true;
+    Serial.println("Node A automatic peak window mode enabled. Use set_demo_hour <0-23> for demo time.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("peak_auto_off")) {
+    autoPeakTrafficMode = false;
+    Serial.println("Node A automatic peak window mode disabled.");
+    return true;
+  }
+
+  int hour = -1;
+  if (sscanf(command.c_str(), "set_demo_hour %d", &hour) == 1) {
+    if (hour < 0 || hour > 23) {
+      Serial.println("Demo hour must be between 0 and 23.");
+      return true;
+    }
+    demoHour = static_cast<int8_t>(hour);
+    Serial.print("Node A demo hour set to ");
+    Serial.print(demoHour);
+    Serial.print(" | in_peak_window=");
+    Serial.println(onOffLabel(hourInPeakWindow(demoHour)));
+    return true;
   }
 
   if (command.equalsIgnoreCase("emu_on")) {
@@ -472,13 +619,37 @@ void loop() {
   lastPowerReading = ina219Read();
   hasSnapshot = true;
 
-  if (nowMs - lastTelemetryMs >= config::kTelemetryIntervalMs) {
-    lastTelemetryMs = nowMs;
+  const EnergyTxMode currentTxMode = chooseEnergyTxMode(telemetry);
+  const bool modeChanged = currentTxMode != lastTxMode;
+  bool sendFullTelemetry = false;
+  bool sendHeartbeat = false;
 
-    // Node B only needs the compact telemetry payload; the longer STATUS line
-    // is for human-readable evidence and CSV logging.
+  if (currentTxMode == EnergyTxMode::ActiveTelemetry) {
+    sendFullTelemetry = modeChanged || (nowMs - lastFullTelemetryMs >= config::kTelemetryIntervalMs);
+  } else if (currentTxMode == EnergyTxMode::IdleHeartbeat) {
+    sendFullTelemetry = !hasLastSentTelemetry || trafficStateChanged(telemetry, lastSentTelemetry);
+    sendHeartbeat = !sendFullTelemetry && (modeChanged || (nowMs - lastHeartbeatMs >= config::kHeartbeatIntervalMs));
+  } else {
+    const bool emergencyChanged = hasLastSentTelemetry && telemetry.emergencyRequested != lastSentTelemetry.emergencyRequested;
+    sendFullTelemetry = emergencyChanged;
+    sendHeartbeat = !sendFullTelemetry && (modeChanged || (nowMs - lastHeartbeatMs >= config::kPeakHeartbeatIntervalMs));
+  }
+
+  if (sendFullTelemetry) {
     const String payload = encodeTelemetry(telemetry);
     sendTelemetryOverLoRa(payload);
+    lastFullTelemetryMs = nowMs;
+    lastHeartbeatMs = nowMs;
+    lastSentTelemetry = telemetry;
+    hasLastSentTelemetry = true;
+  } else if (sendHeartbeat) {
+    sendHeartbeatOverLoRa(currentTxMode, nowMs);
+    lastHeartbeatMs = nowMs;
+  }
+  lastTxMode = currentTxMode;
+
+  if (nowMs - lastStatusMs >= config::kTelemetryIntervalMs) {
+    lastStatusMs = nowMs;
 
     if (logMode == LogMode::Summary) {
       Serial.print("A STATUS | source=");
@@ -515,6 +686,10 @@ void loop() {
       Serial.print(telemetry.passedCount);
       Serial.print(" | emergency=");
       Serial.print(onOffLabel(telemetry.emergencyRequested));
+      Serial.print(" | energy_mode=");
+      Serial.print(energyModeLabel(currentTxMode));
+      Serial.print(" | last_packet=");
+      Serial.print(lastTxPacketKind);
       Serial.print(" | tx=");
       Serial.print(txBackendLabel());
       Serial.print(" | power=");
@@ -529,7 +704,7 @@ void loop() {
         Serial.print("INA219_NA");
       }
       Serial.print(" | payload=");
-      Serial.println(lastPayload);
+      Serial.println(lastPayload.length() > 0 ? lastPayload : "NONE");
     } else if (logMode == LogMode::Verbose) {
       Serial.print("A SENSE | source=");
       Serial.print(sourceLabel());
@@ -557,13 +732,17 @@ void loop() {
       Serial.print(telemetry.estimatedQueue);
       Serial.print(" ambulance=");
       Serial.print(onOffLabel(telemetry.emergencyRequested));
+      Serial.print(" energyMode=");
+      Serial.print(energyModeLabel(currentTxMode));
       Serial.print(" power=");
       printIna219Reading(Serial, lastPowerReading);
 
       Serial.print("A TX | backend=");
       Serial.print(txBackendLabel());
+      Serial.print(" kind=");
+      Serial.print(lastTxPacketKind);
       Serial.print(" | payload=");
-      Serial.println(lastPayload);
+      Serial.println(lastPayload.length() > 0 ? lastPayload : "NONE");
     }
   }
 }

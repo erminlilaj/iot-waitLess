@@ -83,3 +83,36 @@ bool decodeTelemetry(const String& payload, SideTelemetry& telemetry) {
   telemetry.nearDistanceCm = nearDistanceCm;
   return true;
 }
+
+String encodeHeartbeat(SideId side, HeartbeatMode mode, uint32_t timestampMs) {
+  const char modeToken = mode == HeartbeatMode::Peak ? 'P' : 'I';
+  return String("H,") + sideName(side) + "," + String(modeToken) + "," + String(timestampMs);
+}
+
+bool decodeHeartbeat(const String& payload, NodeHeartbeat& heartbeat) {
+  char packetToken = '\0';
+  char sideToken = 'A';
+  char modeToken = 'I';
+  unsigned long timestampMs = 0;
+
+  const int matched = sscanf(
+      payload.c_str(),
+      "%c,%c,%c,%lu",
+      &packetToken,
+      &sideToken,
+      &modeToken,
+      &timestampMs);
+
+  if (matched != 4 || packetToken != 'H') {
+    return false;
+  }
+
+  heartbeat.side = sideToken == 'B' ? SideId::B : SideId::A;
+  heartbeat.mode = modeToken == 'P' ? HeartbeatMode::Peak : HeartbeatMode::Idle;
+  heartbeat.timestampMs = static_cast<uint32_t>(timestampMs);
+  return true;
+}
+
+const char* heartbeatModeName(HeartbeatMode mode) {
+  return mode == HeartbeatMode::Peak ? "PEAK" : "IDLE";
+}

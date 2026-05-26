@@ -43,12 +43,18 @@ SideTelemetry remoteTelemetry;
 bool localEmergencyRequested = false;
 bool remoteEmergencyRequested = false;
 bool remoteTelemetryInjected = false;
+bool manualPeakTrafficMode = false;
+bool autoPeakTrafficMode = false;
+bool remotePeakHeartbeatActive = false;
 LogMode logMode = LogMode::Summary;
 float farThresholdCm = config::kFarThresholdCm;
 float nearThresholdCm = config::kNearThresholdCm;
+int8_t demoHour = -1;
 uint32_t lastLoopMs = 0;
 uint32_t lastStatusMs = 0;
 uint32_t lastRemoteRxMs = 0;
+uint32_t lastRemotePeakHeartbeatMs = 0;
+uint32_t lastRemoteTimeoutMs = config::kRemoteTelemetryTimeoutMs;
 bool hasSnapshot = false;
 float lastFarDistanceCm = 999.0f;
 float lastNearDistanceCm = 999.0f;
@@ -58,9 +64,11 @@ SideTelemetry lastLocalTelemetry;
 SideTelemetry lastEffectiveRemoteTelemetry;
 TrafficDecision lastDecision;
 String lastRemoteSource = "IDLE";
+String lastRemotePacketKind = "NONE";
 float lastRssiDbm = 0.0f;
 float lastSnrDb = 0.0f;
 bool lastRxWasRadio = false;
+bool lastRemotePacketWasHeartbeat = false;
 bool remoteTelemetryStale = false;
 bool nodeABackupActive = false;
 const char* nodeABackupReason = "NONE";
@@ -92,6 +100,35 @@ const char* backupModeLabel() {
 
 const char* recoveryStateLabel() {
   return nodeABackupActive ? "WAITING_FOR_LORA" : "LIVE";
+}
+
+bool hourInPeakWindow(int8_t hour) {
+  return (hour >= config::kMorningPeakStartHour && hour < config::kMorningPeakEndHour) ||
+         (hour >= config::kEveningPeakStartHour && hour < config::kEveningPeakEndHour);
+}
+
+bool remotePeakHeartbeatFresh(uint32_t nowMs) {
+  return remotePeakHeartbeatActive &&
+         lastRemotePeakHeartbeatMs > 0 &&
+         (nowMs - lastRemotePeakHeartbeatMs) <= config::kRemoteHeartbeatTimeoutMs;
+}
+
+bool peakTrafficModeActive(uint32_t nowMs) {
+  return manualPeakTrafficMode ||
+         (autoPeakTrafficMode && demoHour >= 0 && hourInPeakWindow(demoHour)) ||
+         remotePeakHeartbeatFresh(nowMs);
+}
+
+const char* controllerEnergyModeLabel(uint32_t nowMs) {
+  return peakTrafficModeActive(nowMs) ? "PEAK_LOW_COMMUNICATION" : "ADAPTIVE_TELEMETRY";
+}
+
+void ensurePeakDemand(SideTelemetry& telemetry, SideId side, uint32_t nowMs) {
+  telemetry.side = side;
+  if (telemetry.estimatedQueue == 0) {
+    telemetry.estimatedQueue = 1;
+  }
+  telemetry.timestampMs = nowMs;
 }
 
 void setNodeABackupActive(bool active, const char* reason) {
@@ -140,20 +177,27 @@ SideTelemetry effectiveRemoteTelemetry(uint32_t nowMs) {
   if (!loRaIsActive()) {
     setNodeABackupActive(true, "LORA_INACTIVE");
     remoteTelemetryStale = false;
+    lastRemoteTimeoutMs = config::kRemoteTelemetryTimeoutMs;
     lastRemoteSource = "BACKUP_NO_LORA";
     return applyRemoteEmergencyOverride(makeNodeABackupTelemetry(nowMs));
   }
 
-  if (lastRemoteRxMs == 0 || (nowMs - lastRemoteRxMs) > config::kRemoteTelemetryTimeoutMs) {
+  const bool lowCommunicationExpected = lastRemotePacketWasHeartbeat || !hasDemand(remoteTelemetry);
+  lastRemoteTimeoutMs = lowCommunicationExpected ? config::kRemoteHeartbeatTimeoutMs : config::kRemoteTelemetryTimeoutMs;
+
+  if (lastRemoteRxMs == 0 || (nowMs - lastRemoteRxMs) > lastRemoteTimeoutMs) {
     setNodeABackupActive(true, "NODE_A_STALE");
     remoteTelemetryStale = true;
+    remotePeakHeartbeatActive = false;
     lastRemoteSource = "LORA_STALE";
     return applyRemoteEmergencyOverride(makeNodeABackupTelemetry(nowMs));
   }
 
   setNodeABackupActive(false, "LORA_RADIO");
   remoteTelemetryStale = false;
-  lastRemoteSource = "LORA_RADIO";
+  if (!lastRemotePacketWasHeartbeat) {
+    lastRemoteSource = "LORA_RADIO";
+  }
   return applyRemoteEmergencyOverride(remoteTelemetry);
 }
 
@@ -261,6 +305,12 @@ void printBenchHelp() {
   Serial.println("  filter");
   Serial.println("  health");
   Serial.println("  power");
+  Serial.println("  energy");
+  Serial.println("  peak_on");
+  Serial.println("  peak_off");
+  Serial.println("  peak_auto_on");
+  Serial.println("  peak_auto_off");
+  Serial.println("  set_demo_hour <0-23>");
   Serial.println("  remote_ambulance_on");
   Serial.println("  remote_ambulance_off");
   Serial.println("  local_ambulance_on");
@@ -279,6 +329,36 @@ void printThresholds(Stream& out) {
   out.println(farThresholdCm, 1);
   out.print("near_threshold_cm: ");
   out.println(nearThresholdCm, 1);
+}
+
+void printEnergyStatus(Stream& out) {
+  printSectionHeader(out, "ENERGY COMMUNICATION");
+  out.print("manual_peak_mode: ");
+  out.println(onOffLabel(manualPeakTrafficMode));
+  out.print("auto_peak_mode: ");
+  out.println(onOffLabel(autoPeakTrafficMode));
+  out.print("remote_peak_heartbeat: ");
+  out.println(onOffLabel(remotePeakHeartbeatActive));
+  out.print("demo_hour: ");
+  if (demoHour >= 0) {
+    out.println(demoHour);
+  } else {
+    out.println("NOT_SET");
+  }
+  out.print("peak_window: ");
+  out.print(config::kMorningPeakStartHour);
+  out.print("-");
+  out.print(config::kMorningPeakEndHour);
+  out.print(", ");
+  out.print(config::kEveningPeakStartHour);
+  out.print("-");
+  out.println(config::kEveningPeakEndHour);
+  out.print("controller_energy_mode: ");
+  out.println(controllerEnergyModeLabel(millis()));
+  out.print("last_remote_packet: ");
+  out.println(lastRemotePacketKind);
+  out.print("remote_timeout_ms: ");
+  out.println(lastRemoteTimeoutMs);
 }
 
 void printSensorFilterValue(Stream& out) {
@@ -532,6 +612,12 @@ void printStatusSnapshot(Stream& out) {
   out.println(nodeABackupReason);
   out.print("recovery_state: ");
   out.println(recoveryStateLabel());
+  out.print("controller_energy_mode: ");
+  out.println(controllerEnergyModeLabel(millis()));
+  out.print("last_remote_packet: ");
+  out.println(lastRemotePacketKind);
+  out.print("remote_timeout_ms: ");
+  out.println(lastRemoteTimeoutMs);
   if (lastRemoteRxMs > 0) {
     out.print("last_radio_age_ms: ");
     out.println(millis() - lastRemoteRxMs);
@@ -612,6 +698,12 @@ void printReport(Stream& out) {
   out.println(nodeABackupReason);
   out.print("recovery_state: ");
   out.println(recoveryStateLabel());
+  out.print("controller_energy_mode: ");
+  out.println(controllerEnergyModeLabel(millis()));
+  out.print("last_remote_packet: ");
+  out.println(lastRemotePacketKind);
+  out.print("remote_timeout_ms: ");
+  out.println(lastRemoteTimeoutMs);
   if (lastRemoteRxMs > 0) {
     out.print("last_radio_age_ms: ");
     out.println(millis() - lastRemoteRxMs);
@@ -690,12 +782,58 @@ bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
     return false;
   }
 
+  if (command.equalsIgnoreCase("energy")) {
+    printEnergyStatus(Serial);
+    return false;
+  }
+
+  if (command.equalsIgnoreCase("peak_on")) {
+    manualPeakTrafficMode = true;
+    Serial.println("Node B peak low-communication controller mode enabled.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("peak_off")) {
+    manualPeakTrafficMode = false;
+    Serial.println("Node B peak low-communication controller mode disabled.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("peak_auto_on")) {
+    autoPeakTrafficMode = true;
+    Serial.println("Node B automatic peak window mode enabled. Use set_demo_hour <0-23> for demo time.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("peak_auto_off")) {
+    autoPeakTrafficMode = false;
+    Serial.println("Node B automatic peak window mode disabled.");
+    return true;
+  }
+
+  int hour = -1;
+  if (sscanf(command.c_str(), "set_demo_hour %d", &hour) == 1) {
+    if (hour < 0 || hour > 23) {
+      Serial.println("Demo hour must be between 0 and 23.");
+      return true;
+    }
+    demoHour = static_cast<int8_t>(hour);
+    Serial.print("Node B demo hour set to ");
+    Serial.print(demoHour);
+    Serial.print(" | in_peak_window=");
+    Serial.println(onOffLabel(hourInPeakWindow(demoHour)));
+    return true;
+  }
+
   if (command.equalsIgnoreCase("remote_clear")) {
     remoteTelemetry = makeRemoteTelemetry(false, false, false, 0, nowMs);
     remoteTelemetryInjected = false;
     lastRemoteRxMs = 0;
     remoteTelemetryStale = false;
     lastRxWasRadio = false;
+    lastRemotePacketWasHeartbeat = false;
+    remotePeakHeartbeatActive = false;
+    lastRemotePacketKind = "NONE";
     lastRemoteSource = "IDLE";
     Serial.println("Remote side reset to empty.");
     return true;
@@ -709,6 +847,9 @@ bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
     lastRemoteRxMs = 0;
     remoteTelemetryStale = false;
     lastRxWasRadio = false;
+    lastRemotePacketWasHeartbeat = false;
+    remotePeakHeartbeatActive = false;
+    lastRemotePacketKind = "SERIAL_TELEMETRY";
     lastRemoteSource = "SERIAL_EMU";
     Serial.print("Remote queue set to ");
     Serial.println(queue);
@@ -755,6 +896,9 @@ bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
     lastRemoteRxMs = 0;
     remoteTelemetryStale = false;
     lastRxWasRadio = false;
+    lastRemotePacketWasHeartbeat = false;
+    remotePeakHeartbeatActive = false;
+    lastRemotePacketKind = "SERIAL_TELEMETRY";
     lastRemoteSource = "SERIAL_EMU";
     Serial.print("Remote state updated | far=");
     Serial.print(farOccupied != 0 ? "1" : "0");
@@ -774,6 +918,9 @@ bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
     lastRemoteRxMs = 0;
     remoteTelemetryStale = false;
     lastRxWasRadio = false;
+    lastRemotePacketWasHeartbeat = false;
+    remotePeakHeartbeatActive = false;
+    lastRemotePacketKind = "SERIAL_TELEMETRY";
     lastRemoteSource = "SERIAL_EMU";
     Serial.println("Remote telemetry payload accepted.");
     return true;
@@ -874,15 +1021,51 @@ void loop() {
   // Radio reception runs before sensing so the controller uses the freshest
   // available Node A telemetry in this loop iteration.
   if (loRaTryReceive(packet, Serial)) {
+    NodeHeartbeat heartbeat;
     SideTelemetry receivedTelemetry;
-    if (parseTelemetryLine(packet.payload, receivedTelemetry) && receivedTelemetry.side == SideId::A) {
+    if (decodeHeartbeat(packet.payload, heartbeat) && heartbeat.side == SideId::A) {
+      remoteTelemetryInjected = false;
+      lastRemoteRxMs = nowMs;
+      lastRssiDbm = packet.rssi;
+      lastSnrDb = packet.snr;
+      lastRxWasRadio = true;
+      lastRemotePacketWasHeartbeat = true;
+      remoteTelemetryStale = false;
+
+      if (heartbeat.mode == HeartbeatMode::Peak) {
+        remoteTelemetry = makeRemoteTelemetry(false, false, false, 1, nowMs);
+        remotePeakHeartbeatActive = true;
+        lastRemotePeakHeartbeatMs = nowMs;
+        lastRemotePacketKind = "HEARTBEAT_PEAK";
+        lastRemoteSource = "LORA_HEARTBEAT_PEAK";
+      } else {
+        remoteTelemetry = makeRemoteTelemetry(false, false, false, 0, nowMs);
+        remotePeakHeartbeatActive = false;
+        lastRemotePacketKind = "HEARTBEAT_IDLE";
+        lastRemoteSource = "LORA_HEARTBEAT_IDLE";
+      }
+
+      if (logMode == LogMode::Verbose) {
+        Serial.print("[LoRa HB] ");
+        Serial.print(packet.payload);
+        Serial.print(" | mode=");
+        Serial.print(heartbeatModeName(heartbeat.mode));
+        Serial.print(" | RSSI=");
+        Serial.print(packet.rssi, 1);
+        Serial.print(" dBm SNR=");
+        Serial.println(packet.snr, 1);
+      }
+    } else if (parseTelemetryLine(packet.payload, receivedTelemetry) && receivedTelemetry.side == SideId::A) {
       remoteTelemetry = receivedTelemetry;
       remoteTelemetryInjected = false;
       lastRemoteRxMs = nowMs;
       lastRemoteSource = "LORA_RADIO";
+      lastRemotePacketKind = "TELEMETRY";
       lastRssiDbm = packet.rssi;
       lastSnrDb = packet.snr;
       lastRxWasRadio = true;
+      lastRemotePacketWasHeartbeat = false;
+      remotePeakHeartbeatActive = false;
       remoteTelemetryStale = false;
       if (logMode == LogMode::Verbose) {
         Serial.print("[LoRa RX] ");
@@ -930,9 +1113,15 @@ void loop() {
   localTelemetry.farDistanceCm = farDistance;
   localTelemetry.nearDistanceCm = nearDistance;
   const SideTelemetry remoteTelemetryNow = effectiveRemoteTelemetry(nowMs);
+  SideTelemetry controllerRemoteTelemetry = remoteTelemetryNow;
+  SideTelemetry controllerLocalTelemetry = localTelemetry;
+  if (peakTrafficModeActive(nowMs)) {
+    ensurePeakDemand(controllerRemoteTelemetry, SideId::A, nowMs);
+    ensurePeakDemand(controllerLocalTelemetry, SideId::B, nowMs);
+  }
   // One controller update combines real side-B sensing, remote side-A data,
   // emergency requests, and backup mode into final traffic-light outputs.
-  const TrafficDecision decision = controller.update(remoteTelemetryNow, localTelemetry, nowMs);
+  const TrafficDecision decision = controller.update(controllerRemoteTelemetry, controllerLocalTelemetry, nowMs);
   lastFarDistanceCm = farDistance;
   lastNearDistanceCm = nearDistance;
   lastFarOccupied = farOccupied;
@@ -980,14 +1169,20 @@ void loop() {
       Serial.print(remoteTelemetryNow.estimatedQueue);
       Serial.print(" | source=");
       Serial.print(lastRemoteSource);
+      Serial.print(" | remote_packet=");
+      Serial.print(lastRemotePacketKind);
       Serial.print(" | stale=");
       Serial.print(onOffLabel(remoteTelemetryStale));
+      Serial.print(" | timeout_ms=");
+      Serial.print(lastRemoteTimeoutMs);
       Serial.print(" | backup=");
       Serial.print(backupModeLabel());
       Serial.print(" | backup_reason=");
       Serial.print(nodeABackupReason);
       Serial.print(" | recovery=");
       Serial.print(recoveryStateLabel());
+      Serial.print(" | energy_mode=");
+      Serial.print(controllerEnergyModeLabel(nowMs));
       Serial.print(" | green=");
       Serial.print(sideName(decision.greenSide));
       Serial.print(" | phase=");
@@ -1030,6 +1225,10 @@ void loop() {
       Serial.print(remoteTelemetryNow.estimatedQueue);
       Serial.print(" | remoteSource=");
       Serial.print(lastRemoteSource);
+      Serial.print(" packet=");
+      Serial.print(lastRemotePacketKind);
+      Serial.print(" energyMode=");
+      Serial.print(controllerEnergyModeLabel(nowMs));
       Serial.print(" | stale=");
       Serial.println(onOffLabel(remoteTelemetryStale));
       Serial.print("BACKUP | backup=");
