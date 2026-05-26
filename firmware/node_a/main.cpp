@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_sleep.h>
 #include <stdio.h>
 
 // Node A is the side-A sensing node. It reads two ultrasonic sensors, estimates
@@ -28,9 +29,10 @@ bool emulationEnabled = false;
 bool emulatedFarOccupied = false;
 bool emulatedNearOccupied = false;
 bool manualEmergencyRequested = false;
-bool manualPeakTrafficMode = false;
-bool autoPeakTrafficMode = false;
-int8_t demoHour = -1;
+RTC_DATA_ATTR bool manualPeakTrafficMode = false;
+RTC_DATA_ATTR bool autoPeakTrafficMode = false;
+RTC_DATA_ATTR bool peakSleepEnabled = false;
+RTC_DATA_ATTR int8_t demoHour = -1;
 LogMode logMode = LogMode::Summary;
 float farThresholdCm = config::kFarThresholdCm;
 float nearThresholdCm = config::kNearThresholdCm;
@@ -80,6 +82,10 @@ bool peakTrafficModeActive() {
   return manualPeakTrafficMode || (autoPeakTrafficMode && demoHour >= 0 && hourInPeakWindow(demoHour));
 }
 
+bool peakSleepModeActive() {
+  return peakSleepEnabled && peakTrafficModeActive() && !manualEmergencyRequested;
+}
+
 const char* energyModeLabel(EnergyTxMode mode) {
   if (mode == EnergyTxMode::IdleHeartbeat) {
     return "IDLE_HEARTBEAT";
@@ -110,6 +116,26 @@ bool trafficStateChanged(const SideTelemetry& current, const SideTelemetry& prev
          current.estimatedQueue != previous.estimatedQueue;
 }
 
+void enterPeakSleep(uint32_t nowMs) {
+  Serial.print("A PEAK_SLEEP | mode=ON | sleep_ms=");
+  Serial.print(config::kPeakSleepMs);
+  Serial.print(" | reason=peak fixed-cycle handled by Node B");
+  Serial.print(" | payload=");
+  Serial.println(lastPayload.length() > 0 ? lastPayload : "NONE");
+  Serial.flush();
+  delay(80);
+
+  esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(config::kPeakSleepMs) * 1000ULL);
+  esp_deep_sleep_start();
+}
+
+void runPeakSleepCycle(uint32_t nowMs) {
+  sendHeartbeatOverLoRa(EnergyTxMode::PeakHeartbeat, nowMs);
+  lastHeartbeatMs = nowMs;
+  lastTxMode = EnergyTxMode::PeakHeartbeat;
+  enterPeakSleep(nowMs);
+}
+
 void printBenchHelp() {
   Serial.println("Node A commands:");
   Serial.println("  help");
@@ -126,6 +152,8 @@ void printBenchHelp() {
   Serial.println("  energy");
   Serial.println("  peak_on");
   Serial.println("  peak_off");
+  Serial.println("  peak_sleep_on");
+  Serial.println("  peak_sleep_off");
   Serial.println("  peak_auto_on");
   Serial.println("  peak_auto_off");
   Serial.println("  set_demo_hour <0-23>");
@@ -164,6 +192,12 @@ void printEnergyStatus(Stream& out) {
   out.println(onOffLabel(manualPeakTrafficMode));
   out.print("auto_peak_mode: ");
   out.println(onOffLabel(autoPeakTrafficMode));
+  out.print("peak_sleep_mode: ");
+  out.println(onOffLabel(peakSleepEnabled));
+  out.print("peak_sleep_ms: ");
+  out.println(config::kPeakSleepMs);
+  out.print("command_grace_ms_after_wake: ");
+  out.println(config::kPeakSleepCommandGraceMs);
   out.print("demo_hour: ");
   if (demoHour >= 0) {
     out.println(demoHour);
@@ -450,6 +484,21 @@ bool handleBenchCommand(const String& rawCommand) {
     return true;
   }
 
+  if (command.equalsIgnoreCase("peak_sleep_on")) {
+    manualPeakTrafficMode = true;
+    peakSleepEnabled = true;
+    Serial.print("Node A peak sleep mode enabled. Node B handles fixed-cycle peak control; Node A wakes every ");
+    Serial.print(config::kPeakSleepMs);
+    Serial.println(" ms for heartbeat.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("peak_sleep_off")) {
+    peakSleepEnabled = false;
+    Serial.println("Node A peak sleep mode disabled.");
+    return true;
+  }
+
   if (command.equalsIgnoreCase("peak_auto_on")) {
     autoPeakTrafficMode = true;
     Serial.println("Node A automatic peak window mode enabled. Use set_demo_hour <0-23> for demo time.");
@@ -542,6 +591,10 @@ void setup() {
   pinMode(hw::node_a::kNearSensor.echo, INPUT);
 
   Serial.println("Node A ready.");
+  const esp_sleep_wakeup_cause_t wakeupCause = esp_sleep_get_wakeup_cause();
+  if (wakeupCause == ESP_SLEEP_WAKEUP_TIMER) {
+    Serial.println("Node A woke from peak sleep timer.");
+  }
   Serial.print("Node A far sensor trig/echo: ");
   Serial.print(hw::node_a::kFarSensor.trig);
   Serial.print("/");
@@ -574,6 +627,15 @@ void loop() {
     return;
   }
   lastLoopMs = nowMs;
+
+  if (peakSleepModeActive()) {
+    if (nowMs < config::kPeakSleepCommandGraceMs) {
+      return;
+    }
+
+    runPeakSleepCycle(nowMs);
+    return;
+  }
 
   float farDistance = 999.0f;
   float nearDistance = 999.0f;
