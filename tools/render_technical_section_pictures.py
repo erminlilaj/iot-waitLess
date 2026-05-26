@@ -53,6 +53,7 @@ TINY = font(15)
 MONO = font(18)
 MONO_BOLD = font(18, True)
 ESP_IMAGE = ROOT / "docs" / "esp.png"
+REFERENCE_COMPONENTS = ROOT / "docs" / "Generated image 1.png"
 
 
 def new_canvas(title: str, subtitle: str) -> tuple[Image.Image, ImageDraw.ImageDraw]:
@@ -117,6 +118,41 @@ def arrow(draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[int, int
     draw.polygon(pts, fill=color)
 
 
+def dashed_arrow(
+    draw: ImageDraw.ImageDraw,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    color: str = MUTED,
+    width: int = 4,
+    dash: int = 22,
+    gap: int = 14,
+) -> None:
+    sx, sy = start
+    ex, ey = end
+    if sy == ey:
+        direction = 1 if ex >= sx else -1
+        x = sx
+        while (x - ex) * direction < 0:
+            x2 = x + direction * min(dash, abs(ex - x))
+            draw.line([(x, sy), (x2, ey)], fill=color, width=width)
+            x = x2 + direction * gap
+    elif sx == ex:
+        direction = 1 if ey >= sy else -1
+        y = sy
+        while (y - ey) * direction < 0:
+            y2 = y + direction * min(dash, abs(ey - y))
+            draw.line([(sx, y), (ex, y2)], fill=color, width=width)
+            y = y2 + direction * gap
+    else:
+        draw.line([start, end], fill=color, width=width)
+    if abs(ex - sx) >= abs(ey - sy):
+        sign = 1 if ex >= sx else -1
+        arrow(draw, (ex - sign * 28, ey), end, color, width)
+    else:
+        sign = 1 if ey >= sy else -1
+        arrow(draw, (ex, ey - sign * 28), end, color, width)
+
+
 def poly_arrow(draw: ImageDraw.ImageDraw, points: list[tuple[int, int]], color: str = MUTED, width: int = 5) -> None:
     if len(points) < 2:
         return
@@ -141,6 +177,24 @@ def paste_fit(base: Image.Image, image_path: Path, box: tuple[int, int, int, int
     x = box[0] + (target_w - src.width) // 2
     y = box[1] + (target_h - src.height) // 2
     base.paste(src, (x, y), src)
+
+
+def paste_crop_fit(
+    base: Image.Image,
+    image_path: Path,
+    crop_box: tuple[int, int, int, int],
+    box: tuple[int, int, int, int],
+) -> bool:
+    if not image_path.exists():
+        return False
+    src = Image.open(image_path).convert("RGBA").crop(crop_box)
+    target_w = box[2] - box[0]
+    target_h = box[3] - box[1]
+    src.thumbnail((target_w, target_h), Image.Resampling.LANCZOS)
+    x = box[0] + (target_w - src.width) // 2
+    y = box[1] + (target_h - src.height) // 2
+    base.paste(src, (x, y), src)
+    return True
 
 
 def draw_ultrasonic_module(draw: ImageDraw.ImageDraw, x: int, y: int, scale: float = 1.0) -> None:
@@ -391,157 +445,136 @@ def render_digital_twin() -> None:
 
 
 def render_hardware_network() -> None:
-    image, draw = new_canvas(
-        "Main Hardware Components + Network Diagram",
-        "Live-demo prototype: two ESP32 LoRa nodes, four ultrasonic sensors, traffic-light LEDs, emergency input, logging, and energy measurement.",
-    )
+    image = Image.new("RGB", (W, H), "#FFFFFF")
+    draw = ImageDraw.Draw(image)
 
-    sensor_a = card(
-        draw,
-        80,
-        245,
-        440,
-        170,
-        "Side A physical sensors",
-        "2x HC-SR04 modules\nA_far: approaching vehicle\nA_near: stop-line / queue\nDemo threshold: 50 cm",
-        BLUE,
-        WASH_BLUE,
-        30,
-    )
-    node_a = card(
-        draw,
-        80,
-        505,
-        440,
-        235,
-        "Node A - sensing node",
-        "Heltec WiFi LoRa 32 V3\nSide A queue estimator\nLoRa telemetry TX",
-        BLUE,
-        SURFACE,
-        28,
-    )
+    medium = font(25, True)
+    node_title = font(44, True)
 
-    lora = card(
-        draw,
-        650,
-        305,
-        620,
-        245,
-        "Wireless network",
-        "LoRa 868 MHz link\nDirection: Node A -> Node B\nPacket contains queue, far/near occupancy, distances, emergency flag, and timestamp\nNode B checks freshness before control",
-        AMBER,
-        WASH_AMBER,
-        56,
-    )
+    def centered_text(x1: int, x2: int, y: int, text: str, fnt: ImageFont.FreeTypeFont, fill: str) -> None:
+        bbox = draw.textbbox((0, 0), text, font=fnt)
+        draw.text((x1 + (x2 - x1 - (bbox[2] - bbox[0])) // 2, y), text, fill=fill, font=fnt)
 
-    laptop = card(
-        draw,
-        650,
-        675,
-        620,
-        230,
-        "Laptop evidence pipeline",
-        "USB serial from Node B\nroad_data_logger.py saves live CSV\nfinal_evidence_report.py: TP/TN/FP/FN, accuracy, stale %, energy\nvisual_simulator.py replays real queue pressure",
-        TEAL,
-        WASH_TEAL,
-        48,
-    )
+    def component_board(box: tuple[int, int, int, int]) -> None:
+        if not paste_crop_fit(image, REFERENCE_COMPONENTS, (245, 120, 548, 255), box):
+            paste_fit(image, ESP_IMAGE, box)
 
-    sensor_b = card(
-        draw,
-        1400,
-        245,
-        440,
-        170,
-        "Side B physical sensors",
-        "2x HC-SR04 modules\nB_far: approaching vehicle\nB_near: stop-line / queue\nDemo threshold: 50 cm",
-        GREEN,
-        WASH_GREEN,
-        30,
-    )
-    node_b = card(
-        draw,
-        1400,
-        505,
-        440,
-        250,
-        "Node B - controller node",
-        "Heltec WiFi LoRa 32 V3\nSide B + LoRa RX\nControls lights + button",
-        GREEN,
-        SURFACE,
-        28,
-    )
-    actuators = card(
-        draw,
-        1400,
-        795,
-        440,
-        145,
-        "Actuators",
-        "6 LEDs with resistors\nSide A: red/yellow/green\nSide B: red/yellow/green",
-        RED,
-        WASH_RED,
-        36,
-    )
+    def component_sensor(x: int, y: int) -> None:
+        if not paste_crop_fit(image, REFERENCE_COMPONENTS, (98, 120, 194, 180), (x, y, x + 115, y + 74)):
+            draw_ultrasonic_module(draw, x, y, 0.95)
 
-    energy = card(
-        draw,
-        80,
-        795,
-        440,
-        145,
-        "INA219 energy measurement",
-        "INA219 in 5V supply path\nNode A: 123.0 mA avg\nNode B: 174.8 mA avg",
-        PURPLE,
-        WASH_PURPLE,
-        38,
-    )
+    def small_box(x: int, y: int, w: int, h: int, text: str, color: str) -> None:
+        rounded(draw, (x, y, x + w, y + h), "#FFFFFF", color, 3, 10)
+        wrapped(draw, x + 14, y + 12, text, 17, color, SMALL, 20)
 
-    # Component pictures inside the diagram cards.
-    draw_ultrasonic_module(draw, 372, 318, 0.82)
-    draw.text((427, 386), "x2", fill=BLUE, font=H2)
-    paste_fit(image, ESP_IMAGE, (190, 615, 500, 730))
-    draw_ultrasonic_module(draw, 1692, 318, 0.82)
-    draw.text((1747, 386), "x2", fill=GREEN, font=H2)
-    paste_fit(image, ESP_IMAGE, (1540, 640, 1815, 735))
-    draw_laptop_icon(draw, 1060, 760, 0.85)
-    draw_ina219_module(draw, 356, 835, 0.86)
+    def traffic_head(x: int, y: int, active_color: str, label_text: str) -> None:
+        draw.rounded_rectangle((x, y, x + 58, y + 150), radius=10, fill="#22272E", outline="#111827", width=3)
+        for idx, color in enumerate([RED, AMBER, GREEN]):
+            cy = y + 28 + idx * 46
+            fill = color if color == active_color else "#2B302D"
+            outline = "#111827"
+            draw.ellipse((x + 13, cy - 15, x + 45, cy + 17), fill=fill, outline=outline, width=2)
+        centered_text(x - 12, x + 70, y + 160, label_text, SMALL, INK)
 
-    # Hardware signal arrows.
-    arrow(draw, ((sensor_a[0] + sensor_a[2]) // 2, sensor_a[3] + 22), ((node_a[0] + node_a[2]) // 2, node_a[1] - 22), BLUE, 6)
-    label(draw, 180, 450, "GPIO trigger/echo", BLUE)
-    arrow(draw, (node_a[2] + 28, 610), (lora[0] - 28, 430), AMBER, 7)
-    label(draw, 545, 500, "LoRa TX", AMBER)
-    arrow(draw, (lora[2] + 28, 430), (node_b[0] - 28, 610), AMBER, 7)
-    label(draw, 1298, 500, "LoRa RX", AMBER)
-    arrow(draw, ((sensor_b[0] + sensor_b[2]) // 2, sensor_b[3] + 22), ((node_b[0] + node_b[2]) // 2, node_b[1] - 22), GREEN, 6)
-    label(draw, 1500, 450, "GPIO trigger/echo", GREEN)
-    arrow(draw, ((node_b[0] + node_b[2]) // 2, node_b[3] + 20), ((actuators[0] + actuators[2]) // 2, actuators[1] - 20), RED, 6)
-    label(draw, 1515, 765, "GPIO LED outputs", RED)
-    poly_arrow(draw, [(1400, 685), (1315, 685), (1315, 790), (1270, 790)], TEAL, 6)
-    label(draw, 1278, 650, "USB serial log", TEAL)
-    arrow(draw, (960, 550), (960, 675), TEAL, 6)
-    label(draw, 985, 595, "saved evidence", TEAL)
+    # Node cards, matching the reference-style placement.
+    node_a = (270, 55, 720, 455)
+    node_b = (1200, 55, 1650, 455)
+    rounded(draw, node_a, "#FFFFFF", BLUE, 4, 18)
+    rounded(draw, node_b, "#FFFFFF", GREEN, 4, 18)
+    centered_text(node_a[0], node_a[2], 78, "NODE A", node_title, BLUE)
+    centered_text(node_a[0], node_a[2], 132, "ESP32 Heltec LoRa", H2, INK)
+    centered_text(node_b[0], node_b[2], 78, "NODE B", node_title, GREEN)
+    centered_text(node_b[0], node_b[2], 132, "ESP32 Heltec LoRa", H2, INK)
+    component_board((325, 165, 665, 285))
+    component_board((1255, 165, 1595, 285))
+    small_box(292, 325, 190, 88, "2 Sensors\nA_far + A_near", BLUE)
+    small_box(505, 325, 190, 88, "LoRa Telemetry\nTX to Node B", BLUE)
+    small_box(1222, 325, 190, 88, "LoRa Receiver\nRX from Node A", GREEN)
+    small_box(1435, 325, 190, 88, "Adaptive Control\nGPIO to lights", GREEN)
 
-    # Small visual hints for the traffic-light heads.
-    for x in [1660, 1760]:
-        draw.rounded_rectangle((x, 835, x + 56, 902), radius=14, fill="#202833", outline="#667085", width=2)
-        for y, color in [(848, RED), (868, AMBER), (888, GREEN)]:
-            draw.ellipse((x + 20, y, x + 36, y + 16), fill=color, outline="#111827")
-    draw.text((1646, 910), "Side A", fill=MUTED, font=TINY)
-    draw.text((1746, 910), "Side B", fill=MUTED, font=TINY)
+    # Physical sensors around each node.
+    draw.text((38, 157), "Side A\nfar sensor", fill=INK, font=BODY)
+    draw.text((38, 282), "Side A\nnear sensor", fill=INK, font=BODY)
+    component_sensor(138, 142)
+    component_sensor(138, 267)
+    arrow(draw, (250, 176), (320, 176), "#111827", 4)
+    arrow(draw, (250, 301), (320, 301), "#111827", 4)
 
-    rounded(draw, (80, 950, 1840, 1015), "#FFFFFF", LINE, 3, 18)
-    wrapped(
-        draw,
-        110,
-        966,
-        "Voltage notes: boards and HC-SR04 sensors are powered from 5V; ESP32 GPIO is 3.3V logic, so each HC-SR04 ECHO line needs a divider or level shifter. LED outputs use current-limiting resistors.",
-        150,
-        INK,
-        SMALL,
-        22,
-    )
+    component_sensor(1700, 142)
+    component_sensor(1700, 267)
+    draw.text((1810, 157), "Side B\nfar sensor", fill=INK, font=BODY)
+    draw.text((1810, 282), "Side B\nnear sensor", fill=INK, font=BODY)
+    arrow(draw, (1698, 176), (1622, 176), "#111827", 4)
+    arrow(draw, (1698, 301), (1622, 301), "#111827", 4)
+
+    # LoRa communication in the center.
+    centered_text(780, 1140, 116, "LoRa", font(54, True), "#000000")
+    draw.arc((875, 82, 930, 136), 210, 330, fill=BLUE, width=4)
+    draw.arc((982, 82, 1037, 136), 210, 330, fill=BLUE, width=4)
+    draw.arc((895, 98, 915, 118), 210, 330, fill=BLUE, width=4)
+    draw.arc((997, 98, 1017, 118), 210, 330, fill=BLUE, width=4)
+    draw.text((842, 268), "TELEMETRY", fill=BLUE, font=H2)
+    draw.text((808, 304), "Node A -> Node B", fill=BLUE, font=BODY)
+    dashed_arrow(draw, (720, 365), (1200, 365), BLUE, 4)
+    draw.text((835, 395), "queue + far/near distances + emergency + timestamp", fill=MUTED, font=TINY)
+    pill(draw, 842, 430, "demo ultrasonic threshold = 50 cm", AMBER, WASH_AMBER)
+
+    rounded(draw, (735, 505, 1185, 615), "#FFFFFF", "#111827", 3, 16)
+    centered_text(735, 1185, 526, "NODE B CONTROL OUTPUT", medium, "#111827")
+    centered_text(735, 1185, 565, "Adaptive decision -> Side A / Side B LEDs", BODY, "#111827")
+    poly_arrow(draw, [(1425, 455), (1425, 520), (1185, 520)], GREEN, 5)
+    label(draw, 1250, 478, "normal control path", GREEN)
+
+    # USB logging / digital twin output.
+    rounded(draw, (1355, 565, 1805, 740), "#FFFFFF", BLUE, 3, 14)
+    draw_laptop_icon(draw, 1385, 600, 0.75)
+    draw.text((1548, 595), "LAPTOP EVIDENCE", fill=BLUE, font=H2)
+    wrapped(draw, 1548, 635, "USB serial log\nCSV evidence\nDashboard + simulator replay", 26, INK, SMALL, 22)
+    dashed_arrow(draw, (1650, 445), (1580, 565), TEAL, 4)
+    label(draw, 1615, 500, "USB serial", TEAL)
+
+    # Energy measurement block.
+    rounded(draw, (55, 660, 430, 845), "#FFFFFF", PURPLE, 3, 14)
+    draw_ina219_module(draw, 82, 710, 0.85)
+    draw.text((205, 682), "INA219 ENERGY", fill=PURPLE, font=H2)
+    wrapped(draw, 205, 724, "Measured one node at a time\nNode A: 123.0 mA avg\nNode B: 174.8 mA avg", 27, INK, SMALL, 22)
+
+    # Traffic lights at the bottom, like the reference image.
+    draw.line((960, 615, 960, 715), fill="#111827", width=4)
+    draw.line((570, 715, 1350, 715), fill="#111827", width=4)
+    for x in [570, 690, 810, 1080, 1200, 1320]:
+        arrow(draw, (x + 29, 715), (x + 29, 755), "#111827", 4)
+    traffic_head(570, 755, RED, "RED")
+    traffic_head(690, 755, AMBER, "YELLOW")
+    traffic_head(810, 755, GREEN, "GREEN")
+    traffic_head(1080, 755, RED, "RED")
+    traffic_head(1200, 755, AMBER, "YELLOW")
+    traffic_head(1320, 755, GREEN, "GREEN")
+    centered_text(535, 905, 950, "SIDE A LIGHTS", H2, INK)
+    centered_text(1045, 1450, 950, "SIDE B LIGHTS", H2, INK)
+
+    # Legend and voltage note.
+    rounded(draw, (1475, 770, 1815, 905), "#FFFFFF", "#111827", 3, 12)
+    centered_text(1475, 1815, 785, "LEGEND", H2, INK)
+    draw.line((1510, 830, 1580, 830), fill=GREEN, width=4)
+    draw.text((1602, 818), "GPIO / control path", fill=INK, font=SMALL)
+    draw.line((1510, 865, 1580, 865), fill=BLUE, width=3)
+    for x in range(1528, 1580, 18):
+        draw.rectangle((x, 862, x + 9, 868), fill="#FFFFFF")
+    draw.text((1602, 853), "LoRa telemetry", fill=INK, font=SMALL)
+    draw.line((1510, 895, 1580, 895), fill=TEAL, width=3)
+    for x in range(1528, 1580, 18):
+        draw.rectangle((x, 892, x + 9, 898), fill="#FFFFFF")
+    draw.text((1602, 883), "USB logging", fill=INK, font=SMALL)
+
+    rounded(draw, (95, 865, 430, 990), "#FFFFFF", RED, 3, 12)
+    draw.polygon([(125, 910), (157, 910), (141, 880)], fill=RED)
+    draw.text((137, 887), "!", fill="#FFFFFF", font=font(20, True))
+    draw.text((178, 890), "VOLTAGE NOTE", fill=RED, font=H2)
+    wrapped(draw, 178, 925, "HC-SR04 ECHO can be 5V.\nUse divider/level shifter before ESP32 GPIO.", 25, INK, SMALL, 20)
+
+    rounded(draw, (410, 1000, 1510, 1055), "#FFFFFF", "#111827", 3, 10)
+    centered_text(410, 1510, 1010, "IOT ADAPTIVE TRAFFIC LIGHT PROTOTYPE NETWORK ARCHITECTURE", font(30, True), "#111827")
 
     save(image, "06-hardware-network-diagram.png")
 
