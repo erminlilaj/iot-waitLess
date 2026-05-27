@@ -33,6 +33,36 @@ Important distinction: the firmware senses faster than it logs. The controller c
 
 With a `200 ms` loop, the 2-sample debounce means a new occupied/free state usually needs about `400 ms` of consistent readings before it is accepted.
 
+## Vehicle Speed Detection Estimate
+
+The firmware does not directly measure vehicle speed. It detects whether a vehicle is present inside the ultrasonic detection zone. The maximum detectable speed depends on how long the vehicle remains inside that zone.
+
+Detection estimate:
+
+```text
+required_detection_time = about 0.4 s
+max_detectable_speed = effective_detection_length / required_detection_time
+```
+
+Why `0.4 s`: the firmware loop is `200 ms`, and the occupancy debounce requires `2` consistent filtered readings. In the best timing case this can react closer to `0.2 s`, but `0.4 s` is the safer value to claim.
+
+For a normal real car passing a side-looking ultrasonic sensor:
+
+```text
+typical car length ~= 4.0 m
+beam width at 50-100 cm ~= 0.1-0.3 m
+effective_detection_length ~= 4.1-4.3 m
+safe speed ~= 4.1 m / 0.4 s = 10.25 m/s = 36.9 km/h
+```
+
+Final claim for discussion:
+
+```text
+The system is suitable for urban crossroad and queue detection, with a conservative reliable detection speed of about 35-40 km/h for a normal car passing through the beam. For stopped or queued cars, detection is easier because the vehicle remains in the sensor zone much longer.
+```
+
+Important limitation: this is calculated from firmware timing and sensor geometry, not measured with a speed gun. For small classroom objects, the detectable speed is much lower because the object is shorter and stays in the beam for less time.
+
 ## LoRa Communication Timing
 
 | Mode | Packet behavior |
