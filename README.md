@@ -23,6 +23,7 @@ real sensors -> ESP32 firmware -> LoRa telemetry -> traffic-light control -> CSV
 | Data collection and analysis tools | `tools/` |
 | Hardware wiring | `docs/hardware-map.md` |
 | Code explanation | `docs/code-understanding-guide.md` |
+| Technical numbers cheat sheet | `docs/final/technical_numbers_cheat_sheet.md` |
 
 ## System Architecture
 
