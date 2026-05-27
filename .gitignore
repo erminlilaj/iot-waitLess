@@ -1,11 +1,31 @@
 .pio/
+.vscode/
+outputs/
 __pycache__/
 *.pyc
 *.log
+*.raw.log
+/final.pptx
+/Wait_Less.pptx
+/Wait_Less_final.pptx
+/april-10-presentation.pptx.pdf
+/hh.tex
+/The second delivery serves as a check-po.md
+/docs/artifact-build-manifest.json
+/docs/Wait_Less_Final_Delivery_Presentation.pptx
+/docs/Wait_Less_*.pptx
+/docs/Wait_Less_Software_Section*.pptx
+/docs/april-10-*
+/docs/project-stage-report.*
+/docs/Generated image *.png
+/docs/simulation.png
+/data/road_sessions/*quick*
+/data/road_sessions/node_a_far_gpio3_check.csv
+/data/road_sessions/node_a_far_recheck.csv
+/data/road_sessions/node_b_button_firmware_check.csv
 *.aux
 *.fdb_latexmk
 *.fls
 *.out
 *.synctex.gz
 *.toc
-

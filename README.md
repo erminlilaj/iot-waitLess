@@ -1,242 +1,278 @@
 # Wait Less
 
-Queue-aware adaptive traffic light system for a two-way intersection using ESP32 LoRa nodes.
+Wait Less is an IoT adaptive traffic-light prototype for a two-way crossroad. The system uses real ultrasonic sensors, two ESP32 Heltec LoRa nodes, real road data, INA219 energy measurements, and a simulator replay driven by collected CSV data.
 
-This repository contains the final IoT prototype package for the Wait Less project. The goal is to sense traffic on both sides of a real crossroad, exchange compact telemetry over LoRa, adapt the traffic lights in near real time, and connect the real road dataset back into a digital-twin simulator.
-
-## Current Scope
-
-- Two ESP32 Heltec LoRa nodes.
-- Four ultrasonic sensors: two on Node A and two on Node B.
-- Node B traffic-light output for both directions.
-- Real crossroad CSV with labelled `vehicle` / `empty` samples.
-- INA219-based energy measurement.
-- Final evidence dashboard, report, graph assets, and real-data simulator replay.
-- Firmware robustness improvements: per-sensor thresholds, median filtering, debounce, sensor health diagnostics, emergency button input, and Node A stale-link backup/recovery mode.
-
-## Final Evidence Snapshot
-
-| Item | Result |
-| --- | --- |
-| Real road CSV | `data\data_readed\road_26-05-19_crossroads.csv` |
-| Duration | `18.0 min` |
-| ESP32 samples | `2160` |
-| TP/TN/FP/FN | `1269 / 817 / 59 / 15` |
-| Detection accuracy | `96.6%` |
-| False positive rate | `6.7%` |
-| False negative rate | `1.2%` |
-| LoRa stale rows | `65 / 2160 = 3.0%` |
-| Node A current | `123.0 mA` average from 30-second INA219 samples |
-| Node B current | `174.8 mA` average |
-| Road run energy | `89.3 mAh` |
-| Estimated 10000 mAh runtime | `25.2 h` |
-| Digital-twin waiting-pressure estimate | `31.6%` lower than fixed-time control |
-
-The waiting-pressure estimate is a digital-twin comparison: the same real road demand from the CSV is replayed under fixed-time control and under the adaptive controller. The road deployment itself proves real detection quality, LoRa freshness, energy consumption, and real-data simulator integration.
-
-## Repository Layout
-
-- `platformio.ini`: PlatformIO environments for the two ESP32 nodes
-- `lib/traffic_control/`: shared sensing, messaging, and adaptive-controller logic
-- `firmware/node_a/`: sensing node for side A
-- `firmware/node_b/`: sensing + controller node for side B
-- `firmware/shared/`: common firmware configuration
-- `firmware/shared/HardwareMap.h`: shared bench-test pin mapping
-- `simulation/simulate_traffic.py`: local demo of the control algorithm
-- `docs/checkpoint-demo.md`: suggested second-delivery presentation/demo flow
-- `docs/april-10-readiness.md`: April 10 checklist and submission status
-- `docs/april-10-slide-assets.pdf`: slide-ready tables, charts, technical numbers, and log snippets
-- `docs/hardware-map.md`: current bench-test wiring plan
-- `docs/bring-up-guide.md`: recommended order once hardware arrives
-- `docs/hardware-arrival-checklist.md`: first-day hardware bring-up checklist
-- `docs/fixed-test-scenarios.md`: fixed scenarios and expected serial evidence
-- `docs/logging-and-results.md`: clean serial workflow using quiet, summary, verbose, status, and report
-- `docs/test-results-log.md`: single results file for software and hardware validation
-- `docs/node-a-telemetry-bench-test.md`: how to exercise Node A telemetry with or without sensors
-- `docs/node-b-standalone-bench-test.md`: how to bench-test Node B before LoRa integration
-- `docs/two-node-serial-emulation.md`: how the two nodes can interact before real LoRa is added
-- `docs/lora-integration.md`: current RadioLib-based LoRa integration assumptions
-- `docs/road-field-data-collection.md`: real-road data collection workflow for digital-twin evidence, false positives, and energy notes
-- `docs/ina219-energy-measurement.md`: real current and energy measurement workflow with INA219
-- `docs/final-presentation-plan.md`: slide plan, video storyboard, missing-photo checklist, and graph list
-- `docs/final-delivery-checklist.md`: official assignment requirement mapping and final submission checklist
-- `docs/live-demo-log-format.md`: final four-sensor live-demo terminal/CSV format
-- `docs/code-understanding-guide.md`: professor-friendly guide to the firmware, tools, simulator, and data flow
-- `docs/code-flow-diagram.md`: Mermaid diagrams showing firmware, LoRa, logger, CSV, and simulator code flow
-- `docs/technical-section-slide-assets.md`: slide-ready pictures for the architecture, LoRa, algorithm, software, and simulator section
-- `tools/final_presentation_graphs.py`: generates final graph PNGs for the presentation
-- `data/data_readed/presentation_graphs/`: final slide-ready graph images
-
-## How The System Works
-
-Each side of the intersection has:
-
-- one far sensor for approaching traffic
-- one near sensor for queue or stop-line presence
-
-Node A reads side A and transmits a compact telemetry packet. Node B reads side B, receives side A telemetry, runs the adaptive controller, and drives the six traffic-light LEDs.
-
-The current controller follows three simple rules:
-
-1. Respect a minimum green time to avoid oscillation.
-2. Switch if the current green side becomes empty and the other side has demand.
-3. Switch after the minimum green if the other side is clearly busier, or after the maximum green if the other side is still waiting.
-
-## Local Demo
-
-You can already demo the logic without hardware:
-
-```powershell
-python simulation/simulate_traffic.py
-```
-
-This prints a time-based scenario showing when the controller keeps green, schedules yellow, and switches sides.
-
-For repeatable software-only controller checks:
-
-```powershell
-python simulation/test_controller.py
-```
-
-This runs the current baseline assertions for balanced demand, empty-lane yield, busier-side switching, and max-green enforcement.
-
-For a visual checkpoint demo with animated cars on a one-lane four-direction intersection:
-
-```powershell
-python simulation/visual_simulator.py
-```
-
-The visual simulator groups north/south as one adaptive phase and east/west as the other, which matches the current two-side controller design while giving you a much more presentation-friendly view of the traffic flow.
-
-Inside the GUI you can now choose between:
-
-- `Scenario`: the original scripted traffic pattern
-- `CSV replay`: load the real road CSV inside the simulator and replay the measured queue pressure
-- `Direct queues`: choose the visible Side A / Side B queue counts yourself for a controlled explanation
-- `Manual rates`: set the car frequency for north, south, east, and west yourself
-- `Random`: let the simulator reshuffle traffic pressure automatically every few seconds
-
-For the final demo, the recommended path is now simply:
-
-```powershell
-python simulation/visual_simulator.py
-```
-
-Then select `CSV replay` and click `Use Default`, or click `Load CSV` to choose another saved road file.
-
-The latest visual version also replaces the old abstract sensor marks with ultrasonic-style modules, shows their capture zones, and pushes the far sensors farther from the intersection to better match the intended hardware story.
-
-For a separate emergency-priority version that keeps the same base simulator but adds ambulance override behavior and shows the two ESP32 LoRa boards visually connected to their ultrasonic sensors and traffic lights:
-
-```powershell
-python simulation/visual_simulator_emergency.py
-```
-
-In this emergency version:
-
-- the current green road still transitions through yellow before giving way
-- an ambulance request overrides queue counts and gives priority to the ambulance axis
-- Node A is shown handling the `North/South` sensors and lights
-- Node B is shown handling the `East/West` sensors and lights
-
-For the same visual simulator driven by real road queue counts from the validated CSV. Cars still enter from outside the crossroad and pass the far/near sensors normally; the CSV controls the traffic pressure.
-
-```powershell
-python simulation\visual_simulator_real_data.py --csv data\data_readed\road_26-05-19_crossroads.csv
-```
-
-For a slower presentation replay with readable cars:
-
-```powershell
-python simulation\visual_simulator_real_data.py --csv data\data_readed\road_26-05-19_crossroads.csv --speed 1.5 --queue-scale 3
-```
-
-For a text-only comparison between the simulator controller and the real firmware states:
-
-```powershell
-python simulation\visual_simulator_real_data.py --csv data\data_readed\road_26-05-19_crossroads.csv --summary
-```
-
-Generate the final evidence dashboard and written report from the validated road CSV:
-
-```powershell
-python tools\final_evidence_report.py --csv data\data_readed\road_26-05-19_crossroads.csv
-```
-
-Generate slide-ready graphs:
-
-```powershell
-python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --power-csv data\road_sessions\ina219_power_timeseries_2026-05-20.csv --out-dir data\data_readed\presentation_graphs
-```
-
-Presentation planning:
+The main goal is not only to show a simulation, but to show the full IoT path:
 
 ```text
-docs\final-presentation-plan.md
+real sensors -> ESP32 firmware -> LoRa telemetry -> traffic-light control -> CSV evidence -> evaluation -> simulator replay
 ```
 
-## Real Road Data Collection
+## Final Package
 
-For final IoT evidence, collect real sensor data from a physical road position and visualize it with the road dashboard:
+| Item | Path |
+| --- | --- |
+| Final presentation | `docs/final/Wait_Less_final_presentation.pptx` |
+| Real road dataset | `data/data_readed/road_26-05-19_crossroads.csv` |
+| Road evidence report | `data/data_readed/road_26-05-19_crossroads_evidence_report.md` |
+| Road dashboard | `data/data_readed/road_26-05-19_crossroads_evidence_dashboard.html` |
+| Sensor reliability comparison | `data/data_readed/sensor_reliability_files/` |
+| Presentation graphs | `data/data_readed/presentation_graphs/` |
+| Firmware | `firmware/` and `lib/traffic_control/` |
+| Simulator | `simulation/` |
+| Data collection and analysis tools | `tools/` |
+| Hardware wiring | `docs/hardware-map.md` |
+| Code explanation | `docs/code-understanding-guide.md` |
+
+## System Architecture
+
+The prototype uses two ESP32 Heltec LoRa boards.
+
+| Node | Role |
+| --- | --- |
+| Node A | Reads Side A far/near ultrasonic sensors and sends Side A telemetry over LoRa |
+| Node B | Reads Side B far/near ultrasonic sensors, receives Node A telemetry, runs the controller, and drives both traffic-light directions |
+
+Each side has:
+
+- one far ultrasonic sensor for approaching vehicles
+- one near ultrasonic sensor for stop-line / queue detection
+
+Node B combines local Side B data with remote Side A data and decides which side receives green.
+
+## Hardware Summary
+
+- 2 x ESP32 Heltec WiFi LoRa 32 V3 boards
+- 4 x HC-SR04 ultrasonic sensors
+- 6 x traffic-light LEDs: red/yellow/green for Side A and Side B
+- 1 x push button for emergency priority testing
+- INA219 current sensor for energy measurement
+- LoRa link between Node A and Node B
+
+Detailed pin mapping is in:
+
+```text
+docs/hardware-map.md
+firmware/shared/HardwareMap.h
+```
+
+The live demo threshold is `50 cm / 50 cm`. The road-evaluation CSV used `100 cm / 100 cm`.
+
+## Firmware Features
+
+The final firmware includes:
+
+- median-of-3 ultrasonic distance filtering
+- 2-sample occupancy debounce
+- per-sensor threshold command through serial
+- sensor health status: `OK`, `WARN`, `FAIL`
+- compact LoRa telemetry packets
+- heartbeat packets for low-traffic and peak modes
+- stale Node A detection and backup behavior on Node B
+- emergency push-button logic
+- INA219 support when the sensor is connected
+
+The communication layer separates traffic data from node health:
+
+```text
+Telemetry packet:
+A,1,0,4,2,2,0,12345,42.0,999.0
+
+Heartbeat packet:
+H,A,I,12345
+H,A,P,12345
+```
+
+This avoids confusing "no useful traffic update" with "Node A failed".
+
+## Build And Upload Firmware
+
+Install PlatformIO, then build each node:
 
 ```powershell
-python tools\road_data_logger.py --port COM3 --node node_a --out data\road_sessions\road_2026-05-16_node_a.csv
-python tools\road_dashboard.py --csv data\road_sessions\road_2026-05-16_node_a.csv
+platformio run -e node_a
+platformio run -e node_b
 ```
 
-While logging, type `v` when a vehicle is inside the observed sensor zone and `n` when the zone is empty. After the session:
-
-The current live-demo firmware defaults to `50 cm` for the far sensor and `50 cm` for the near sensor. During logging, type `set_thresholds 50 50` to restore the demo setting or another pair such as `set_thresholds 80 60` to tune without reflashing. The validated road dataset below used `100 cm / 100 cm`.
+Upload to the connected board:
 
 ```powershell
-python tools\road_data_summary.py --csv data\road_sessions\road_2026-05-16_node_a.csv --out data\road_sessions\road_2026-05-16_node_a_summary.txt
-python tools\sensor_threshold_analysis.py --csv data\road_sessions\road_2026-05-16_node_a.csv --sensor both --out data\road_sessions\road_2026-05-16_thresholds.txt
-python tools\energy_estimator.py --duration-min 30 --node-a-ma 120 --node-b-ma 160 --battery-mah 10000
+platformio run -e node_a --target upload --upload-port COM3
+platformio run -e node_b --target upload --upload-port COM3
 ```
 
-See `docs/road-field-data-collection.md` for the full field checklist.
-
-If using an INA219, wire it as described in `docs/ina219-energy-measurement.md`, then summarize measured current with:
+Open the serial monitor:
 
 ```powershell
-python tools\ina219_energy_summary.py --csv data\road_sessions\node_a_ina219.csv --csv data\road_sessions\node_b_ina219.csv --road-csv data\data_readed\road_26-05-19_crossroads.csv
+platformio device monitor --port COM3 --baud 115200
 ```
 
-The validated road dataset used a fixed `100 cm` threshold for both far and near ultrasonic sensors. The reported `96.6%` accuracy is calculated from labelled real-road samples: false positives and false negatives are measured from the CSV, not guessed. After seeing the remaining false positives and one real sensor wiring issue, the firmware was improved with per-sensor threshold commands, median-of-3 ultrasonic distance filtering, 2-sample occupancy debouncing, and sensor-health diagnostics. Future validation is to collect a second road CSV with `sensor_filter=median3_debounce2` and `sensor_health` fields, then compare FP/FN against the current baseline.
+Useful serial commands:
 
-## Firmware Notes
+```text
+status
+report
+log summary
+log verbose
+set_thresholds 50 50
+set_thresholds 100 100
+```
 
-The firmware now includes the final project features:
+## Live Data Logging
 
-- sensor reading is implemented with Arduino primitives
-- ultrasonic occupancy is stabilized with median3 distance filtering and debounce2 state changes
-- repeated invalid ultrasonic readings are surfaced as sensor-health `WARN` / `FAIL`
-- telemetry encoding/decoding uses a compact CSV payload
-- a shared LoRa transport now targets the onboard `SX1262` radio on `Heltec WiFi LoRa 32 V3`
-- the serial-emulation path is still kept for testing before real hardware is available
-- both nodes now support `log quiet`, `log summary`, `log verbose`, `status`, and `report`
-- Node B now times out stale radio telemetry after `3000 ms` so old packets do not keep a phantom queue alive
-- when Node A becomes stale, Node B enters backup mode, assumes conservative Side A demand, logs `backup=ON`, and automatically recovers when LoRa packets return
+Use the road logger to save Node B output into CSV:
 
-## Final Presentation Assets
+```powershell
+python tools/road_data_logger.py --port COM3 --node node_b --out data/road_sessions/final_demo_node_b.csv
+```
 
-Use these files directly in the final slides:
+During road collection, manual labels are used:
 
-- `data\data_readed\road_26-05-19_crossroads_evidence_dashboard.html`
-- `data\data_readed\road_26-05-19_crossroads_evidence_report.md`
-- `data\data_readed\presentation_graphs\01_detection_confusion_matrix.png`
-- `data\data_readed\presentation_graphs\02_detection_quality_rates.png`
-- `data\data_readed\presentation_graphs\03_energy_consumption.png`
-- `data\data_readed\presentation_graphs\04_lora_reliability.png`
-- `data\data_readed\presentation_graphs\05_traffic_demand_over_time.png`
-- `data\data_readed\presentation_graphs\06_detected_vehicle_activations.png`
-- `data\data_readed\presentation_graphs\07_time_saving_estimate.png`
-- `data\data_readed\presentation_graphs\08_digital_twin_pipeline.png`
-- `data\data_readed\presentation_graphs\09_power_consumption_timeseries.png`
+```text
+v = vehicle present
+n = empty road
+```
 
-## Final Remaining Work
+This creates a CSV that can be evaluated for true positives, false positives, false negatives, LoRa stale status, thresholds, sensor health, distances, queues, and light states.
 
-1. Add the road-test videos and hardware photos into the presentation video edit.
-2. Capture any missing photos listed in `docs\final-presentation-plan.md`.
-3. Build the PowerPoint around the generated graphs and evidence dashboard.
-4. During the demo, state clearly that the time-saving number is a digital-twin estimate using real road demand.
+## Real Road Evaluation
+
+The validated road dataset is:
+
+```text
+data/data_readed/road_26-05-19_crossroads.csv
+```
+
+Summary:
+
+| Metric | Result |
+| --- | --- |
+| Duration | 18.0 minutes |
+| Samples | 2160 |
+| Thresholds | 100 cm / 100 cm |
+| TP / TN / FP / FN | 1269 / 817 / 59 / 15 |
+| Accuracy | 96.6% |
+| False positive rate | 6.7% |
+| False negative rate | 1.2% |
+| LoRa stale rows | 65 / 2160 = 3.0% |
+
+Generate the report and dashboard again with:
+
+```powershell
+python tools/final_evidence_report.py --csv data/data_readed/road_26-05-19_crossroads.csv
+```
+
+## Sensor Reliability Comparison
+
+After the first road evaluation, the firmware was improved with median filtering and debounce. The before/after comparison data is in:
+
+```text
+data/data_readed/sensor_reliability_files/
+```
+
+Files:
+
+```text
+compare_no_filter_2026-05-27_node_b.csv
+compare_median3_debounce2_2026-05-27_node_b.csv
+compare_sensor_reliability_2026-05-27_notes.txt
+```
+
+Comparison summary:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Samples | 600 | 600 |
+| Accuracy | 94.17% | 98.17% |
+| False positives | 27 | 9 |
+| False negatives | 8 | 2 |
+| Noise/ghost false positives | 13 | 0 |
+| LoRa stale samples | 5 | 2 |
+| Occupancy state changes | 46 | 28 |
+
+Main result: median-of-3 filtering removed short ultrasonic spikes, and 2-sample debounce made the occupancy signal more stable. Pedestrian false positives can still happen because ultrasonic sensors detect physical objects, not vehicle type.
+
+## Energy Measurements
+
+INA219 measurements were taken before and after the communication/sleep improvements.
+
+Baseline:
+
+| Node | Average current | Average power |
+| --- | ---: | ---: |
+| Node A | 121.4 mA | 609.4 mW |
+| Node B | 174.8 mA | 875.7 mW |
+
+After optimization:
+
+| Mode | Average current | Average power | Reduction |
+| --- | ---: | ---: | ---: |
+| Node A active telemetry | 118.7 mA | 595.9 mW | 2.2% |
+| Node A idle heartbeat | 74.6 mA | 375.2 mW | 38.6% |
+| Node A peak sleep | 32.8 mA | 164.3 mW | 73.0% |
+| Node B telemetry receive | 172.9 mA | 866.2 mW | 1.1% |
+| Node B heartbeat receive | 158.4 mA | 795.2 mW | 9.4% |
+
+Node A improves the most because it can reduce repeated LoRa traffic and sleep during peak fixed-cycle mode. Node B remains mostly awake because it controls the LEDs.
+
+Generate energy and presentation graphs with:
+
+```powershell
+python tools/final_presentation_graphs.py --csv data/data_readed/road_26-05-19_crossroads.csv --power-csv data/road_sessions/ina219_power_timeseries_2026-05-20.csv --out-dir data/data_readed/presentation_graphs
+```
+
+## Simulator
+
+The simulator is used as a digital-twin replay. It can run random traffic, manual queues, or real CSV demand.
+
+Basic simulator:
+
+```powershell
+python simulation/visual_simulator.py
+```
+
+Real-data replay:
+
+```powershell
+python simulation/visual_simulator_real_data.py --csv data/data_readed/road_26-05-19_crossroads.csv
+```
+
+Slower replay for presentation:
+
+```powershell
+python simulation/visual_simulator_real_data.py --csv data/data_readed/road_26-05-19_crossroads.csv --speed 1.5 --queue-scale 3
+```
+
+Text-only summary:
+
+```powershell
+python simulation/visual_simulator_real_data.py --csv data/data_readed/road_26-05-19_crossroads.csv --summary
+```
+
+## Repository Structure
+
+```text
+firmware/
+  node_a/                 Node A firmware
+  node_b/                 Node B firmware
+  shared/                 shared config, pin map, INA219 support
+
+lib/traffic_control/      shared controller, sensing, LoRa, packet logic
+simulation/               visual simulator and real-data replay
+tools/                    logger, report, graph, and analysis scripts
+data/data_readed/         final road CSV, reports, graphs, reliability data
+data/road_sessions/       live test CSV logs and INA219 time-series
+docs/                     hardware map, code guide, diagrams, final slides
+```
+
+## Notes For The Demo
+
+Recommended live-demo order:
+
+1. Show Node A and Node B hardware.
+2. Start Node B serial log and show distances, queues, stale status, and light states.
+3. Trigger the emergency button once and twice to show Side B / Side A priority.
+4. Show the saved CSV and explain the truth labels.
+5. Show the evaluation numbers: accuracy, false positives, false negatives, LoRa stale percentage.
+6. Show the energy improvement from heartbeat and peak sleep.
+7. End with simulator replay from the real road CSV.

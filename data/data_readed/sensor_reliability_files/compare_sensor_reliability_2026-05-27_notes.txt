@@ -1,0 +1,40 @@
+
+Measurement date: 2026-05-27
+Baseline start time: 18:10
+Baseline end time: 18:20
+Improved start time: 18:25
+Improved end time: 18:35
+Location: same crossroad position
+Node used for logging: Node B
+Thresholds used: 100 cm / 100 cm
+Sensor placement changed between runs: No
+Duration baseline: 600 s
+Duration improved: 600 s
+Baseline firmware filter: median1_debounce1
+Improved firmware filter: median3_debounce2
+Notes: same sensor placement, similar traffic, manual labels used.
+
+Field summary table:
+Metric,Without improvement,With improvement,Result
+Duration_s,600,600,Same duration
+Rows,600,600,Comparable
+Thresholds_cm,100/100,100/100,Controlled
+Sensor placement changed,No,No,Controlled
+Sensor filter,median1_debounce1,median3_debounce2,Improved firmware tested
+Truth vehicle samples,249,252,Compare
+Truth empty samples,351,348,Compare
+True positives,241,250,Compare
+True negatives,324,339,Compare
+False positives noise,13,0,Should decrease
+False positives pedestrian,14,9,May remain
+False negatives dropout,8,2,Should decrease
+Accuracy_percent,94.2,98.2,Compare
+False_positive_rate_percent,7.7,2.6,Compare
+False_negative_rate_percent,3.2,0.8,Compare
+LoRa_stale_samples,5,2,Compare
+LoRa_stale_percent,0.8,0.3,Should be low
+Occupancy_state_changes,46,28,Should decrease
+Sensor_health,F:OK,N:OK,F:OK,N:OK,Healthy
+
+Final claim:
+Compared with the baseline run, median-of-3 filtering and 2-sample debounce reduced short ghost/noise detections and made occupancy more stable. Pedestrian false positives may still remain because ultrasonic sensors detect physical objects, not vehicle type.
