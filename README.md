@@ -304,7 +304,6 @@ Recommended live-demo order:
   <a href="https://github.com/darked0">
     <img src="https://github.com/darked0.png" width="100px;"/>
     <br />
-    <sub><b>Nome Cognome 3</b></sub>
   </a>
   <br />
   <a href="www.linkedin.com/in/edoardo-severini"> Edoardo Severini</a>
