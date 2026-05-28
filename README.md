@@ -277,3 +277,53 @@ Recommended live-demo order:
 5. Show the evaluation numbers: accuracy, false positives, false negatives, LoRa stale percentage.
 6. Show the energy improvement from heartbeat and peak sleep.
 7. End with simulator replay from the real road CSV.
+
+## Contributors
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/hamzaabedlkadr-b">
+        <img src="https://github.com/hamzaabedlkadr-b.png" width="100px;"/>
+        <br />
+      </a>
+      <br />
+      <a href="https://www.linkedin.com/in/hamza-abdelkader/"> Hamza Abdel kader</a>
+    </td>
+
+<td align="center">
+  <a href="https://github.com/erminlilaj">
+    <img src="https://github.com/erminlilaj.png" width="100px;"/>
+    <br />
+  </a>
+  <br />
+  <a href="https://www.linkedin.com/in/ermin-lilaj-300057169/"> Ermin Lilaj</a>
+</td>
+
+<td align="center">
+  <a href="https://github.com/darked0">
+    <img src="https://github.com/darked0.png" width="100px;"/>
+    <br />
+    <sub><b>Nome Cognome 3</b></sub>
+  </a>
+  <br />
+  <a href="www.linkedin.com/in/edoardo-severini"> Edoardo Severini</a>
+</td>
+  </tr>
+</table>
+
+---
+
+## Demo / Presentation
+
+<p align="center">
+  📺 Watch the project presentation on YouTube
+  <br /><br />
+
+  <a href="https://www.youtube.com/watch?v=lq9b3uMraB4">
+    <img 
+      src="https://img.shields.io/badge/Watch%20on-YouTube-red?style=for-the-badge&logo=youtube" 
+      alt="Watch on YouTube"
+    />
+  </a>
+</p>
