@@ -17,7 +17,7 @@ real sensors -> ESP32 firmware -> LoRa telemetry -> traffic-light control -> CSV
 | Road evidence report | `data/data_readed/road_26-05-19_crossroads_evidence_report.md` |
 | Road dashboard | `data/data_readed/road_26-05-19_crossroads_evidence_dashboard.html` |
 | Sensor reliability comparison | `data/data_readed/sensor_reliability_files/` |
-| Presentation graphs | `data/data_readed/presentation_graphs/` |
+| Presentation assets | `docs/presentation_assets/` |
 | Firmware | `firmware/` and `lib/traffic_control/` |
 | Simulator | `simulation/` |
 | Data collection and analysis tools | `tools/` |
@@ -219,8 +219,10 @@ Node A improves the most because it can reduce repeated LoRa traffic and sleep d
 Generate energy and presentation graphs with:
 
 ```powershell
-python tools/final_presentation_graphs.py --csv data/data_readed/road_26-05-19_crossroads.csv --power-csv data/road_sessions/ina219_power_timeseries_2026-05-20.csv --out-dir data/data_readed/presentation_graphs
+python tools/final_presentation_graphs.py --csv data/data_readed/road_26-05-19_crossroads.csv --power-csv data/road_sessions/ina219_power_timeseries_2026-05-20.csv --out-dir outputs/presentation_graphs
 ```
+
+The final curated slide images used by the presentation are stored in `docs/presentation_assets/`.
 
 ## Simulator
 

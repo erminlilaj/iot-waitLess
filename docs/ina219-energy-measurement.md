@@ -128,13 +128,13 @@ This directly answers the mandatory energy-consideration requirement with real i
 Generate the slide-ready time-series graph with:
 
 ```powershell
-python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --power-csv data\road_sessions\ina219_power_timeseries_2026-05-20.csv --out-dir data\data_readed\presentation_graphs
+python tools\final_presentation_graphs.py --csv data\data_readed\road_26-05-19_crossroads.csv --power-csv data\road_sessions\ina219_power_timeseries_2026-05-20.csv --out-dir outputs\presentation_graphs
 ```
 
 The generated graph is:
 
 ```text
-data\data_readed\presentation_graphs\09_power_consumption_timeseries.png
+outputs\presentation_graphs\09_power_consumption_timeseries.png
 ```
 
 Use this explanation under the graph:

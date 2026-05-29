@@ -22,7 +22,7 @@ from traffic_logic import AdaptiveController, Side, SideTelemetry, demand_score 
 
 
 DEFAULT_CSV = Path("data") / "data_readed" / "road_26-05-19_crossroads.csv"
-DEFAULT_OUT = Path("data") / "data_readed" / "presentation_graphs"
+DEFAULT_OUT = Path("outputs") / "presentation_graphs"
 DEFAULT_POWER_CSV = Path("data") / "road_sessions" / "ina219_power_timeseries_2026-05-20.csv"
 
 NODE_A_MA = 123.0
