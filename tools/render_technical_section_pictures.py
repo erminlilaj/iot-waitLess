@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT_DIR = ROOT / "docs" / "presentation_assets"
+OUT_DIR = ROOT / "outputs" / "presentation_assets"
 
 W, H = 1920, 1080
 BG = "#F6FAFD"

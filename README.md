@@ -17,7 +17,6 @@ real sensors -> ESP32 firmware -> LoRa telemetry -> traffic-light control -> CSV
 | Road evidence report | `data/data_readed/road_26-05-19_crossroads_evidence_report.md` |
 | Road dashboard | `data/data_readed/road_26-05-19_crossroads_evidence_dashboard.html` |
 | Sensor reliability comparison | `data/data_readed/sensor_reliability_files/` |
-| Presentation assets | `docs/presentation_assets/` |
 | Firmware | `firmware/` and `lib/traffic_control/` |
 | Simulator | `simulation/` |
 | Data collection and analysis tools | `tools/` |
@@ -86,29 +85,43 @@ H,A,P,12345
 
 This avoids confusing "no useful traffic update" with "Node A failed".
 
-## Build And Upload Firmware
+## How To Run
 
-Install PlatformIO, then build each node:
+Replace `COM3` with the serial port shown by PlatformIO or Device Manager.
 
-```powershell
-platformio run -e node_a
-platformio run -e node_b
-```
-
-Upload to the connected board:
+### 1. Upload Node A
 
 ```powershell
 platformio run -e node_a --target upload --upload-port COM3
+```
+
+### 2. Upload Node B
+
+```powershell
 platformio run -e node_b --target upload --upload-port COM3
 ```
 
-Open the serial monitor:
+### 3. Start The Live Log
 
 ```powershell
-platformio device monitor --port COM3 --baud 115200
+python tools/road_data_logger.py --port COM3 --node node_b --out data/road_sessions/final_demo_node_b.csv
 ```
 
-Useful serial commands:
+The logger records Node B serial output into CSV, including distances, queue estimates, LoRa freshness, sensor health, emergency state, light state, and optional manual labels.
+
+### 4. Run The Simple Simulator
+
+```powershell
+python simulation/visual_simulator.py
+```
+
+### 5. Run The Emergency Simulator
+
+```powershell
+python simulation/visual_simulator_emergency.py
+```
+
+Useful serial commands during firmware testing:
 
 ```text
 status
@@ -121,7 +134,7 @@ set_thresholds 100 100
 
 ## Live Data Logging
 
-Use the road logger to save Node B output into CSV:
+The road logger saves Node B output into CSV:
 
 ```powershell
 python tools/road_data_logger.py --port COM3 --node node_b --out data/road_sessions/final_demo_node_b.csv
@@ -221,8 +234,6 @@ Generate energy and presentation graphs with:
 ```powershell
 python tools/final_presentation_graphs.py --csv data/data_readed/road_26-05-19_crossroads.csv --power-csv data/road_sessions/ina219_power_timeseries_2026-05-20.csv --out-dir outputs/presentation_graphs
 ```
-
-The final curated slide images used by the presentation are stored in `docs/presentation_assets/`.
 
 ## Simulator
 

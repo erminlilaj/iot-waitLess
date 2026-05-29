@@ -10,8 +10,6 @@ The first version looked convincing in a demo. A sensor detected a nearby object
 
 So we built the project around measurement. Wait Less became an ESP32 and LoRa traffic-light prototype with real ultrasonic sensors, CSV logs, labelled road data, energy measurements, and a simulator replay driven by the collected data.
 
-![Wait Less service architecture](presentation_assets/01-service-architecture.png)
-
 The full loop looked like this:
 
 ```text
@@ -26,8 +24,6 @@ The prototype models a small two-way crossroad. Each side of the road has two HC
 - a near sensor, used to notice vehicles waiting close to the stop line
 
 We used two Heltec ESP32 WiFi LoRa 32 V3 boards. Node A reads Side A and sends LoRa telemetry. Node B reads Side B, receives Side A, runs the traffic-light logic, and drives both sets of LEDs.
-
-![Hardware network diagram](presentation_assets/06-hardware-network-diagram.png)
 
 That split gave us a useful project shape. It was not just one board blinking LEDs from local sensor data. It had distributed sensing, wireless communication, stale-data handling, control logic, logging, and a visible output.
 
@@ -59,8 +55,6 @@ HC-SR04 distance reading
 ```
 
 The loop runs every `200 ms`. With a 2-sample debounce, a change needs about `400 ms` to become stable. That number gave us a useful sanity check: at urban speeds, a normal car should remain in the detection zone long enough to be noticed.
-
-![Vehicle speed detection calculation](presentation_assets/07-speed-detection-calculation.png)
 
 Using a rough car length of `4.0 m` and a small extra beam width, the prototype is honest around `35-40 km/h` for normal urban queue detection. It is not a highway-speed vehicle detector, and we should not pretend that it is.
 
@@ -97,8 +91,6 @@ demand = 3 x estimated_queue + 2 x far_occupied + 4 x near_occupied
 
 The near sensor gets the highest weight because a vehicle at the stop line is more urgent than a vehicle only approaching.
 
-![Adaptive algorithm](presentation_assets/03-adaptive-algorithm.png)
-
 The traffic-light controller uses a `5 s` minimum green, a `20 s` maximum green, a `2 s` yellow transition, and a `4 point` advantage margin before switching sides. The margin is important because without it the system can become nervous when both roads have similar demand.
 
 ## LoRa Made The System Distributed
@@ -117,8 +109,6 @@ H,A,P,12345
 ```
 
 That small addition made the controller easier to reason about. A heartbeat lets Node B distinguish between "Node A is alive but has no useful traffic update" and "Node A is missing or stale."
-
-![LoRa communication](presentation_assets/02-lora-communication.png)
 
 With `868 MHz`, `125 kHz` bandwidth, `SF7`, coding rate `4/5`, and `14 dBm` output power, the estimated airtime was about `41 ms` for a heartbeat and about `72-82 ms` for full telemetry.
 
@@ -141,10 +131,6 @@ We collected and manually labelled an `18.0 minute` road session with `2160` sam
 | False negative rate | `1.2%` |
 | LoRa stale rows | `65 / 2160 = 3.0%` |
 
-![Detection confusion matrix](presentation_assets/08-detection-confusion-matrix.png)
-
-![Detection quality rates](presentation_assets/09-detection-quality-rates.png)
-
 The numbers were good enough for a prototype, but they were also specific enough to show where the system was weak. False positives mostly came from the fact that an ultrasonic sensor detects physical objects, not object classes. False negatives happened when a car was outside the cone, reflected poorly, or appeared too briefly to survive filtering and debounce.
 
 That evidence pushed us to improve the firmware. The first version used a simpler `median1_debounce1` sensor state. After field testing, we moved to `median3_debounce2`.
@@ -159,8 +145,6 @@ Using the same placement and thresholds, the comparison over a `600 s` session w
 | Noise/ghost false positives | `13` | `0` |
 | LoRa stale samples | `5` | `2` |
 | Occupancy state changes | `46` | `28` |
-
-![Detected vehicle activations](presentation_assets/10-detected-vehicle-activations.png)
 
 This was the point where the project stopped being just a working demo. The data told us what to fix, and the next version was measurably better.
 
@@ -187,10 +171,6 @@ After adding heartbeat and low-communication modes, Node A benefited the most:
 
 Node B has to stay mostly awake because it controls the lights. Node A has more room to save power because it can reduce repeated communication and sleep in selected modes.
 
-![Energy consumption](presentation_assets/11-energy-consumption.png)
-
-![Power consumption over time](presentation_assets/12-power-consumption-timeseries.png)
-
 ## Replaying The Road As A Digital Twin
 
 The simulator was not meant to replace the physical system. It was a way to make the logged data visible.
@@ -200,10 +180,6 @@ It can run random traffic, manual queue inputs, or replay the real CSV data:
 ```text
 road CSV -> queue estimates -> visual cars -> traffic-light decisions
 ```
-
-![Real data simulator loop](presentation_assets/05-real-data-simulator-loop.png)
-
-![Digital twin pipeline](presentation_assets/13-digital-twin-pipeline.png)
 
 That replay helped connect the numbers back to behavior. Instead of only saying "the CSV has queue estimates," we could show how those estimates would affect the traffic light over time.
 
