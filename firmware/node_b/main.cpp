@@ -17,6 +17,7 @@
 
 namespace {
 
+// Small timing constants used only by Node B for LEDs and the emergency button.
 constexpr uint16_t kLightSelfTestOnMs = 350;
 constexpr uint16_t kLightSelfTestOffMs = 120;
 constexpr uint16_t kButtonDebounceMs = 35;
@@ -25,6 +26,7 @@ constexpr uint16_t kButtonLongPressMs = 1200;
 constexpr uint32_t kBackupRemoteQueue = 1;
 
 ControllerConfig makeControllerConfig() {
+  // Build the controller settings from the shared project constants.
   ControllerConfig config;
   config.minGreenMs = config::kMinGreenMs;
   config.maxGreenMs = config::kMaxGreenMs;
@@ -36,6 +38,7 @@ ControllerConfig makeControllerConfig() {
 LaneEstimator laneEstimator;
 AdaptiveController controller(makeControllerConfig());
 
+// Last known Side A state. It comes from LoRa, serial emulation, heartbeat, or backup.
 SideTelemetry remoteTelemetry;
 
 // Emergency and backup state is separated from raw LoRa telemetry so Node B can
@@ -50,6 +53,8 @@ LogMode logMode = LogMode::Summary;
 float farThresholdCm = config::kFarThresholdCm;
 float nearThresholdCm = config::kNearThresholdCm;
 int8_t demoHour = -1;
+
+// Loop timing, remote-packet freshness, and live-log state.
 uint32_t lastLoopMs = 0;
 uint32_t lastStatusMs = 0;
 uint32_t lastRemoteRxMs = 0;
@@ -73,10 +78,14 @@ bool remoteTelemetryStale = false;
 bool nodeABackupActive = false;
 const char* nodeABackupReason = "NONE";
 Ina219Reading lastPowerReading;
+
+// Local Side B ultrasonic filtering and health monitoring.
 OccupancyDebouncer farDebouncer;
 OccupancyDebouncer nearDebouncer;
 SensorHealthTracker farHealth;
 SensorHealthTracker nearHealth;
+
+// Emergency button state machine. One click means Side B emergency, two clicks Side A.
 bool emergencyButtonStablePressed = false;
 bool emergencyButtonLastRawPressed = false;
 uint32_t emergencyButtonLastRawChangeMs = 0;
@@ -114,6 +123,7 @@ bool remotePeakHeartbeatFresh(uint32_t nowMs) {
 }
 
 bool peakTrafficModeActive(uint32_t nowMs) {
+  // Peak mode can be enabled locally, by demo hour, or by Node A peak heartbeat.
   return manualPeakTrafficMode ||
          (autoPeakTrafficMode && demoHour >= 0 && hourInPeakWindow(demoHour)) ||
          remotePeakHeartbeatFresh(nowMs);
@@ -124,6 +134,8 @@ const char* controllerEnergyModeLabel(uint32_t nowMs) {
 }
 
 void ensurePeakDemand(SideTelemetry& telemetry, SideId side, uint32_t nowMs) {
+  // In peak low-communication mode, both sides stay represented as non-empty
+  // so the controller behaves like a balanced fixed-cycle light.
   telemetry.side = side;
   if (telemetry.estimatedQueue == 0) {
     telemetry.estimatedQueue = 1;
@@ -154,6 +166,8 @@ void setNodeABackupActive(bool active, const char* reason) {
 }
 
 SideTelemetry applyRemoteEmergencyOverride(SideTelemetry telemetry) {
+  // Button/serial emergency requests can force Side A priority even if the
+  // latest LoRa packet did not contain an emergency flag.
   telemetry.emergencyRequested = telemetry.emergencyRequested || remoteEmergencyRequested;
   return telemetry;
 }
@@ -167,6 +181,8 @@ SideTelemetry makeNodeABackupTelemetry(uint32_t nowMs) {
 }
 
 SideTelemetry effectiveRemoteTelemetry(uint32_t nowMs) {
+  // Select the safest available Side A data source. Priority is:
+  // serial test injection, real LoRa, heartbeat freshness, then backup fallback.
   if (remoteTelemetryInjected) {
     setNodeABackupActive(false, "SERIAL_EMU");
     remoteTelemetryStale = false;
@@ -202,6 +218,8 @@ SideTelemetry effectiveRemoteTelemetry(uint32_t nowMs) {
 }
 
 void applyLights(const LightOutput& lights) {
+  // The adaptive controller returns logical outputs; this function writes them
+  // to the actual GPIO pins for both traffic-light heads.
   digitalWrite(hw::node_b::kSideALights.red, lights.aRed ? HIGH : LOW);
   digitalWrite(hw::node_b::kSideALights.yellow, lights.aYellow ? HIGH : LOW);
   digitalWrite(hw::node_b::kSideALights.green, lights.aGreen ? HIGH : LOW);
@@ -229,6 +247,7 @@ void setBothHeads(bool red, bool yellow, bool green) {
 }
 
 void runLightSelfTest() {
+  // Startup self-test proves every LED channel is wired before control starts.
   setBothHeads(true, false, false);
   delay(kLightSelfTestOnMs);
   setAllLightsOff();
@@ -266,6 +285,7 @@ SideTelemetry makeRemoteTelemetry(
 }
 
 bool parseTelemetryLine(const String& rawLine, SideTelemetry& telemetry) {
+  // Accepts either a clean payload or a copied serial line that contains a payload.
   String line = rawLine;
   line.trim();
 
@@ -332,6 +352,7 @@ void printThresholds(Stream& out) {
 }
 
 void printEnergyStatus(Stream& out) {
+  // Printed by the "energy" command to explain communication/heartbeat state.
   printSectionHeader(out, "ENERGY COMMUNICATION");
   out.print("manual_peak_mode: ");
   out.println(onOffLabel(manualPeakTrafficMode));
@@ -405,6 +426,7 @@ void printDistanceState(Stream& out, float distanceCm, bool occupied) {
 }
 
 void resetSensorFilters() {
+  // Threshold changes reset debounce state so old candidates do not affect new readings.
   farDebouncer.reset(false);
   nearDebouncer.reset(false);
 }
@@ -427,6 +449,7 @@ const char* decisionEmergencyTargetLabel(const TrafficDecision& decision) {
 }
 
 void clearEmergencyOverrides(const char* sourceLabel) {
+  // Long press or serial command clears both local and remote emergency requests.
   localEmergencyRequested = false;
   remoteEmergencyRequested = false;
   remoteTelemetry.emergencyRequested = false;
@@ -435,6 +458,7 @@ void clearEmergencyOverrides(const char* sourceLabel) {
 }
 
 void activateEmergencyTarget(SideId targetSide, const char* sourceLabel, uint8_t clicks) {
+  // A single physical button can simulate ambulance priority on either side.
   if (targetSide == SideId::A) {
     remoteEmergencyRequested = true;
     localEmergencyRequested = false;
@@ -500,6 +524,7 @@ void processEmergencyButton(uint32_t nowMs) {
 }
 
 bool applyThresholdCommand(const String& command, Stream& out) {
+  // Handles threshold/filter/health commands for local Side B sensors.
   if (command.equalsIgnoreCase("thresholds")) {
     printSectionHeader(out, "SENSOR THRESHOLDS");
     printThresholds(out);
@@ -570,6 +595,7 @@ bool applyThresholdCommand(const String& command, Stream& out) {
 }
 
 void printStatusSnapshot(Stream& out) {
+  // Human-readable snapshot of controller input, output, radio, and backup state.
   printSectionHeader(out, "NODE B STATUS");
 
   if (!hasSnapshot) {
@@ -656,6 +682,7 @@ void printStatusSnapshot(Stream& out) {
 }
 
 void printReport(Stream& out) {
+  // Machine-friendly report format for final evidence and debugging.
   printSectionHeader(out, "REPORT NODE_B");
 
   if (!hasSnapshot) {
@@ -746,6 +773,8 @@ void printReport(Stream& out) {
 }
 
 bool handleBenchCommand(const String& rawCommand, uint32_t nowMs) {
+  // Serial commands support local tests, remote-side emulation, emergency checks,
+  // threshold tuning, and report generation without reflashing.
   String command = rawCommand;
   command.trim();
 
@@ -957,6 +986,8 @@ const char* lightStateLabel(bool red, bool yellow, bool green) {
 }  // namespace
 
 void setup() {
+  // Hardware setup runs once at boot. Node B owns sensors, button, LoRa RX,
+  // INA219, and all six traffic-light LED outputs.
   Serial.begin(115200);
   Serial.setTimeout(25);
 
@@ -1018,12 +1049,14 @@ void setup() {
 void loop() {
   const uint32_t nowMs = millis();
   LoRaRxPacket packet;
+
   // Radio reception runs before sensing so the controller uses the freshest
   // available Node A telemetry in this loop iteration.
   if (loRaTryReceive(packet, Serial)) {
     NodeHeartbeat heartbeat;
     SideTelemetry receivedTelemetry;
     if (decodeHeartbeat(packet.payload, heartbeat) && heartbeat.side == SideId::A) {
+      // Heartbeat means Node A is alive but is intentionally sending less data.
       remoteTelemetryInjected = false;
       lastRemoteRxMs = nowMs;
       lastRssiDbm = packet.rssi;
@@ -1056,6 +1089,7 @@ void loop() {
         Serial.println(packet.snr, 1);
       }
     } else if (parseTelemetryLine(packet.payload, receivedTelemetry) && receivedTelemetry.side == SideId::A) {
+      // Full telemetry carries real Side A sensor state and queue information.
       remoteTelemetry = receivedTelemetry;
       remoteTelemetryInjected = false;
       lastRemoteRxMs = nowMs;
@@ -1081,11 +1115,13 @@ void loop() {
   processEmergencyButton(nowMs);
   processSerialInput(nowMs);
 
+  // Run the heavier sensing/control path at the configured controller interval.
   if (nowMs - lastLoopMs < config::kLoopIntervalMs) {
     return;
   }
   lastLoopMs = nowMs;
 
+  // Read local Side B sensors using the same filter/debounce logic as Node A.
   const SensorReading farReading = readFilteredUltrasonicSensor(
       hw::node_b::kFarSensor.trig,
       hw::node_b::kFarSensor.echo,
@@ -1108,6 +1144,7 @@ void loop() {
   farHealth.update(farDistance);
   nearHealth.update(nearDistance);
 
+  // Build local Side B telemetry and select the effective Side A telemetry.
   SideTelemetry localTelemetry = laneEstimator.update(SideId::B, farOccupied, nearOccupied, nowMs);
   localTelemetry.emergencyRequested = localEmergencyRequested;
   localTelemetry.farDistanceCm = farDistance;
@@ -1115,6 +1152,8 @@ void loop() {
   const SideTelemetry remoteTelemetryNow = effectiveRemoteTelemetry(nowMs);
   SideTelemetry controllerRemoteTelemetry = remoteTelemetryNow;
   SideTelemetry controllerLocalTelemetry = localTelemetry;
+
+  // Peak mode reduces communication but keeps both sides active in the controller.
   if (peakTrafficModeActive(nowMs)) {
     ensurePeakDemand(controllerRemoteTelemetry, SideId::A, nowMs);
     ensurePeakDemand(controllerLocalTelemetry, SideId::B, nowMs);
@@ -1134,6 +1173,7 @@ void loop() {
 
   applyLights(decision.lights);
 
+  // Print one compact evidence line per second for tools/road_data_logger.py.
   if (nowMs - lastStatusMs >= config::kTelemetryIntervalMs) {
     lastStatusMs = nowMs;
 

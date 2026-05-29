@@ -16,25 +16,30 @@
 
 namespace {
 
+// Converts far/near occupancy events into incoming, passed, and queue counts.
 LaneEstimator laneEstimator;
 
+// Controls what Node A sends over LoRa in each traffic/energy situation.
 enum class EnergyTxMode : uint8_t {
   ActiveTelemetry = 0,
   IdleHeartbeat = 1,
   PeakHeartbeat = 2,
 };
 
+// Stored in RTC memory so the startup log can explain why Node A woke up.
 enum class SleepReason : uint8_t {
   None = 0,
   IdleHeartbeat = 1,
   PeakHeartbeat = 2,
 };
 
-// Runtime state is kept explicit so it can be printed in status/report logs.
+// Manual/emulated inputs used during bench tests and live demonstrations.
 bool emulationEnabled = false;
 bool emulatedFarOccupied = false;
 bool emulatedNearOccupied = false;
 bool manualEmergencyRequested = false;
+
+// Settings that must survive deep sleep are kept in RTC memory.
 RTC_DATA_ATTR bool manualPeakTrafficMode = false;
 RTC_DATA_ATTR bool autoPeakTrafficMode = false;
 RTC_DATA_ATTR bool peakSleepEnabled = false;
@@ -42,6 +47,8 @@ RTC_DATA_ATTR bool idleSleepEnabled = true;
 RTC_DATA_ATTR bool idleSleepCycleActive = false;
 RTC_DATA_ATTR uint8_t lastSleepReason = static_cast<uint8_t>(SleepReason::None);
 RTC_DATA_ATTR int8_t demoHour = -1;
+
+// Runtime configuration and scheduler timestamps.
 LogMode logMode = LogMode::Summary;
 float farThresholdCm = config::kFarThresholdCm;
 float nearThresholdCm = config::kNearThresholdCm;
@@ -51,6 +58,8 @@ uint32_t lastFullTelemetryMs = 0;
 uint32_t lastHeartbeatMs = 0;
 uint32_t noDemandSinceMs = 0;
 bool forceTelemetryOnIdleExit = false;
+
+// Last observed values are cached so status/report commands can print a full snapshot.
 bool lastTxUsedRadio = false;
 bool hasSnapshot = false;
 bool hasLastSentTelemetry = false;
@@ -64,6 +73,8 @@ String lastPayload;
 String lastTxPacketKind = "NONE";
 EnergyTxMode lastTxMode = EnergyTxMode::ActiveTelemetry;
 Ina219Reading lastPowerReading;
+
+// Filtering and health trackers make ultrasonic readings stable and auditable.
 OccupancyDebouncer farDebouncer;
 OccupancyDebouncer nearDebouncer;
 SensorHealthTracker farHealth;
@@ -78,6 +89,7 @@ void sendTelemetryOverLoRa(const String& payload) {
 }
 
 void sendHeartbeatOverLoRa(EnergyTxMode mode, uint32_t nowMs) {
+  // Heartbeats prove Node A is alive when full traffic data is not useful.
   const HeartbeatMode heartbeatMode = mode == EnergyTxMode::PeakHeartbeat ? HeartbeatMode::Peak : HeartbeatMode::Idle;
   lastPayload = encodeHeartbeat(SideId::A, heartbeatMode, nowMs);
   lastTxPacketKind = heartbeatMode == HeartbeatMode::Peak ? "HEARTBEAT_PEAK" : "HEARTBEAT_IDLE";
@@ -112,6 +124,7 @@ bool idleHeartbeatReady() {
 }
 
 EnergyTxMode chooseEnergyTxMode(const SideTelemetry& telemetry) {
+  // Emergency traffic always sends full telemetry so Node B reacts quickly.
   if (telemetry.emergencyRequested) {
     return EnergyTxMode::ActiveTelemetry;
   }
@@ -132,6 +145,8 @@ bool trafficStateChanged(const SideTelemetry& current, const SideTelemetry& prev
 }
 
 void updateIdleSleepEligibility(const SideTelemetry& telemetry, uint32_t nowMs) {
+  // Idle sleep is armed only after a long no-demand period. Any new demand
+  // cancels idle mode and forces a fresh telemetry packet.
   const bool demandDetected = hasDemand(telemetry);
   if (demandDetected && idleSleepCycleActive) {
     forceTelemetryOnIdleExit = true;
@@ -169,6 +184,8 @@ bool idleSleepReadyToSleep(const SideTelemetry& telemetry, uint32_t nowMs) {
 }
 
 void enterIdleSleep(uint32_t nowMs) {
+  // During idle, Node A sleeps briefly, wakes on timer, reads sensors again,
+  // and exits idle if either ultrasonic sensor sees a car.
   Serial.print("A IDLE_SLEEP | mode=ON | sleep_ms=");
   Serial.print(config::kIdleSleepMs);
   Serial.print(" | reason=no Side A demand");
@@ -185,6 +202,8 @@ void enterIdleSleep(uint32_t nowMs) {
 }
 
 void enterPeakSleep(uint32_t nowMs) {
+  // Peak sleep assumes Node B can run a balanced fixed cycle while Node A
+  // wakes only to send a health heartbeat.
   Serial.print("A PEAK_SLEEP | mode=ON | sleep_ms=");
   Serial.print(config::kPeakSleepMs);
   Serial.print(" | reason=peak fixed-cycle handled by Node B");
@@ -258,6 +277,7 @@ void printThresholds(Stream& out) {
 }
 
 void printEnergyStatus(Stream& out) {
+  // Printed by the "energy" command; useful when explaining heartbeat and sleep modes.
   printSectionHeader(out, "ENERGY COMMUNICATION");
   out.print("manual_peak_mode: ");
   out.println(onOffLabel(manualPeakTrafficMode));
@@ -339,11 +359,13 @@ void printSensorHealth(Stream& out) {
 }
 
 void resetSensorFilters() {
+  // Threshold changes reset debounce state so old occupancy candidates do not leak in.
   farDebouncer.reset(false);
   nearDebouncer.reset(false);
 }
 
 bool applyThresholdCommand(const String& command, Stream& out) {
+  // Handles threshold/filter/health commands shared by road tests and bench tests.
   if (command.equalsIgnoreCase("thresholds")) {
     printSectionHeader(out, "SENSOR THRESHOLDS");
     printThresholds(out);
@@ -414,6 +436,7 @@ bool applyThresholdCommand(const String& command, Stream& out) {
 }
 
 void printStatusSnapshot(Stream& out) {
+  // Human-readable snapshot for checking the node without parsing the live log.
   printSectionHeader(out, "NODE A STATUS");
 
   if (!hasSnapshot) {
@@ -465,6 +488,7 @@ void printStatusSnapshot(Stream& out) {
 }
 
 void printReport(Stream& out) {
+  // Machine-friendly report format for copying final evidence into documentation.
   printSectionHeader(out, "REPORT NODE_A");
 
   if (!hasSnapshot) {
@@ -512,6 +536,8 @@ void printReport(Stream& out) {
 }
 
 bool handleBenchCommand(const String& rawCommand) {
+  // Serial commands let us test thresholds, emulation, emergency, and energy modes
+  // without reflashing the firmware.
   String command = rawCommand;
   command.trim();
 
@@ -680,6 +706,7 @@ bool handleBenchCommand(const String& rawCommand) {
 }  // namespace
 
 void setup() {
+  // Hardware setup runs once after reset or after waking from deep sleep.
   Serial.begin(115200);
   Serial.setTimeout(25);
 
@@ -730,11 +757,15 @@ void loop() {
 
   const uint32_t nowMs = millis();
 
+  // Keep the firmware loop period stable. Sensor reads and telemetry decisions
+  // happen every config::kLoopIntervalMs.
   if (nowMs - lastLoopMs < config::kLoopIntervalMs) {
     return;
   }
   lastLoopMs = nowMs;
 
+  // Peak sleep is handled before reading sensors because Node B is intentionally
+  // controlling the intersection in low-communication mode.
   if (peakSleepModeActive()) {
     if (nowMs < config::kPeakSleepCommandGraceMs) {
       return;
@@ -754,6 +785,8 @@ void loop() {
     farOccupied = emulatedFarOccupied;
     nearOccupied = emulatedNearOccupied;
   } else {
+    // Real mode reads both ultrasonic sensors, applies median filtering and
+    // debounce, then updates health counters for invalid/timeout readings.
     const SensorReading farReading = readFilteredUltrasonicSensor(
         hw::node_a::kFarSensor.trig,
         hw::node_a::kFarSensor.echo,
@@ -776,6 +809,7 @@ void loop() {
     nearHealth.update(nearDistance);
   }
 
+  // Convert stable occupied/free values into a Side A telemetry object.
   SideTelemetry telemetry = laneEstimator.update(SideId::A, farOccupied, nearOccupied, nowMs);
   telemetry.emergencyRequested = manualEmergencyRequested;
   telemetry.farDistanceCm = farDistance;
@@ -788,6 +822,8 @@ void loop() {
   lastPowerReading = ina219Read();
   hasSnapshot = true;
 
+  // Decide whether this loop should send full telemetry, idle heartbeat, or
+  // peak heartbeat. Full telemetry is kept for active traffic and emergencies.
   updateIdleSleepEligibility(telemetry, nowMs);
   const EnergyTxMode currentTxMode = chooseEnergyTxMode(telemetry);
   const bool modeChanged = currentTxMode != lastTxMode;
@@ -819,6 +855,7 @@ void loop() {
   }
   lastTxMode = currentTxMode;
 
+  // In idle mode, send a heartbeat before sleeping so Node B knows Node A is alive.
   if (currentTxMode == EnergyTxMode::IdleHeartbeat && idleSleepReadyToSleep(telemetry, nowMs)) {
     if (lastTxPacketKind != "HEARTBEAT_IDLE") {
       sendHeartbeatOverLoRa(EnergyTxMode::IdleHeartbeat, nowMs);
@@ -827,6 +864,7 @@ void loop() {
     enterIdleSleep(nowMs);
   }
 
+  // Print a compact serial line once per second. The logger can save this as evidence.
   if (nowMs - lastStatusMs >= config::kTelemetryIntervalMs) {
     lastStatusMs = nowMs;
 
