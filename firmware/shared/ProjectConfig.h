@@ -9,6 +9,9 @@ namespace config {
 constexpr uint32_t kLoopIntervalMs = 200;
 constexpr uint32_t kTelemetryIntervalMs = 1000;
 constexpr uint32_t kHeartbeatIntervalMs = 10000;
+constexpr uint32_t kIdleHeartbeatEntryNoDemandMs = 180000;
+constexpr uint32_t kIdleSleepNoDemandConfirmMs = 10000;
+constexpr uint32_t kIdleSleepMs = 5000;
 constexpr uint32_t kPeakHeartbeatIntervalMs = 15000;
 constexpr uint32_t kPeakSleepMs = 15000;
 constexpr uint32_t kPeakSleepCommandGraceMs = 5000;

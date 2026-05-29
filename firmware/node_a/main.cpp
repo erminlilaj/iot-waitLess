@@ -24,6 +24,12 @@ enum class EnergyTxMode : uint8_t {
   PeakHeartbeat = 2,
 };
 
+enum class SleepReason : uint8_t {
+  None = 0,
+  IdleHeartbeat = 1,
+  PeakHeartbeat = 2,
+};
+
 // Runtime state is kept explicit so it can be printed in status/report logs.
 bool emulationEnabled = false;
 bool emulatedFarOccupied = false;
@@ -32,6 +38,9 @@ bool manualEmergencyRequested = false;
 RTC_DATA_ATTR bool manualPeakTrafficMode = false;
 RTC_DATA_ATTR bool autoPeakTrafficMode = false;
 RTC_DATA_ATTR bool peakSleepEnabled = false;
+RTC_DATA_ATTR bool idleSleepEnabled = true;
+RTC_DATA_ATTR bool idleSleepCycleActive = false;
+RTC_DATA_ATTR uint8_t lastSleepReason = static_cast<uint8_t>(SleepReason::None);
 RTC_DATA_ATTR int8_t demoHour = -1;
 LogMode logMode = LogMode::Summary;
 float farThresholdCm = config::kFarThresholdCm;
@@ -40,6 +49,8 @@ uint32_t lastLoopMs = 0;
 uint32_t lastStatusMs = 0;
 uint32_t lastFullTelemetryMs = 0;
 uint32_t lastHeartbeatMs = 0;
+uint32_t noDemandSinceMs = 0;
+bool forceTelemetryOnIdleExit = false;
 bool lastTxUsedRadio = false;
 bool hasSnapshot = false;
 bool hasLastSentTelemetry = false;
@@ -96,6 +107,10 @@ const char* energyModeLabel(EnergyTxMode mode) {
   return "ACTIVE_TELEMETRY";
 }
 
+bool idleHeartbeatReady() {
+  return idleSleepEnabled && idleSleepCycleActive;
+}
+
 EnergyTxMode chooseEnergyTxMode(const SideTelemetry& telemetry) {
   if (telemetry.emergencyRequested) {
     return EnergyTxMode::ActiveTelemetry;
@@ -103,7 +118,7 @@ EnergyTxMode chooseEnergyTxMode(const SideTelemetry& telemetry) {
   if (peakTrafficModeActive()) {
     return EnergyTxMode::PeakHeartbeat;
   }
-  if (!hasDemand(telemetry)) {
+  if (!hasDemand(telemetry) && idleHeartbeatReady()) {
     return EnergyTxMode::IdleHeartbeat;
   }
   return EnergyTxMode::ActiveTelemetry;
@@ -116,6 +131,59 @@ bool trafficStateChanged(const SideTelemetry& current, const SideTelemetry& prev
          current.estimatedQueue != previous.estimatedQueue;
 }
 
+void updateIdleSleepEligibility(const SideTelemetry& telemetry, uint32_t nowMs) {
+  const bool demandDetected = hasDemand(telemetry);
+  if (demandDetected && idleSleepCycleActive) {
+    forceTelemetryOnIdleExit = true;
+    Serial.println("A IDLE_SLEEP_EXIT | reason=Side A demand detected");
+  }
+
+  if (!idleSleepEnabled || emulationEnabled || telemetry.emergencyRequested || peakTrafficModeActive() || demandDetected) {
+    noDemandSinceMs = 0;
+    idleSleepCycleActive = false;
+    return;
+  }
+
+  if (noDemandSinceMs == 0) {
+    noDemandSinceMs = nowMs;
+  }
+
+  if (!idleSleepCycleActive && (nowMs - noDemandSinceMs) >= config::kIdleHeartbeatEntryNoDemandMs) {
+    idleSleepCycleActive = true;
+    Serial.print("A IDLE_SLEEP_ARMED | no_demand_ms=");
+    Serial.print(nowMs - noDemandSinceMs);
+    Serial.print(" | next_sleep_ms=");
+    Serial.println(config::kIdleSleepMs);
+  }
+}
+
+bool idleSleepReadyToSleep(const SideTelemetry& telemetry, uint32_t nowMs) {
+  return idleSleepEnabled &&
+         idleSleepCycleActive &&
+         !emulationEnabled &&
+         !telemetry.emergencyRequested &&
+         !peakTrafficModeActive() &&
+         !hasDemand(telemetry) &&
+         noDemandSinceMs > 0 &&
+         (nowMs - noDemandSinceMs) >= config::kIdleSleepNoDemandConfirmMs;
+}
+
+void enterIdleSleep(uint32_t nowMs) {
+  Serial.print("A IDLE_SLEEP | mode=ON | sleep_ms=");
+  Serial.print(config::kIdleSleepMs);
+  Serial.print(" | reason=no Side A demand");
+  Serial.print(" | wake_check_ms=");
+  Serial.print(config::kIdleSleepNoDemandConfirmMs);
+  Serial.print(" | payload=");
+  Serial.println(lastPayload.length() > 0 ? lastPayload : "NONE");
+  Serial.flush();
+  delay(80);
+
+  lastSleepReason = static_cast<uint8_t>(SleepReason::IdleHeartbeat);
+  esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(config::kIdleSleepMs) * 1000ULL);
+  esp_deep_sleep_start();
+}
+
 void enterPeakSleep(uint32_t nowMs) {
   Serial.print("A PEAK_SLEEP | mode=ON | sleep_ms=");
   Serial.print(config::kPeakSleepMs);
@@ -125,6 +193,7 @@ void enterPeakSleep(uint32_t nowMs) {
   Serial.flush();
   delay(80);
 
+  lastSleepReason = static_cast<uint8_t>(SleepReason::PeakHeartbeat);
   esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(config::kPeakSleepMs) * 1000ULL);
   esp_deep_sleep_start();
 }
@@ -150,6 +219,8 @@ void printBenchHelp() {
   Serial.println("  health");
   Serial.println("  power");
   Serial.println("  energy");
+  Serial.println("  idle_sleep_on");
+  Serial.println("  idle_sleep_off");
   Serial.println("  peak_on");
   Serial.println("  peak_off");
   Serial.println("  peak_sleep_on");
@@ -194,6 +265,16 @@ void printEnergyStatus(Stream& out) {
   out.println(onOffLabel(autoPeakTrafficMode));
   out.print("peak_sleep_mode: ");
   out.println(onOffLabel(peakSleepEnabled));
+  out.print("idle_sleep_mode: ");
+  out.println(onOffLabel(idleSleepEnabled));
+  out.print("idle_sleep_active: ");
+  out.println(onOffLabel(idleSleepCycleActive));
+  out.print("idle_entry_no_demand_ms: ");
+  out.println(config::kIdleHeartbeatEntryNoDemandMs);
+  out.print("idle_wake_check_ms: ");
+  out.println(config::kIdleSleepNoDemandConfirmMs);
+  out.print("idle_sleep_ms: ");
+  out.println(config::kIdleSleepMs);
   out.print("peak_sleep_ms: ");
   out.println(config::kPeakSleepMs);
   out.print("command_grace_ms_after_wake: ");
@@ -472,6 +553,25 @@ bool handleBenchCommand(const String& rawCommand) {
     return false;
   }
 
+  if (command.equalsIgnoreCase("idle_sleep_on")) {
+    idleSleepEnabled = true;
+    Serial.print("Node A idle sleep enabled. It arms after ");
+    Serial.print(config::kIdleHeartbeatEntryNoDemandMs);
+    Serial.print(" ms without Side A demand, then sleeps ");
+    Serial.print(config::kIdleSleepMs);
+    Serial.println(" ms between 10 s sensor checks.");
+    return true;
+  }
+
+  if (command.equalsIgnoreCase("idle_sleep_off")) {
+    idleSleepEnabled = false;
+    idleSleepCycleActive = false;
+    noDemandSinceMs = 0;
+    forceTelemetryOnIdleExit = false;
+    Serial.println("Node A idle sleep disabled.");
+    return true;
+  }
+
   if (command.equalsIgnoreCase("peak_on")) {
     manualPeakTrafficMode = true;
     Serial.println("Node A peak low-communication mode enabled.");
@@ -593,7 +693,14 @@ void setup() {
   Serial.println("Node A ready.");
   const esp_sleep_wakeup_cause_t wakeupCause = esp_sleep_get_wakeup_cause();
   if (wakeupCause == ESP_SLEEP_WAKEUP_TIMER) {
-    Serial.println("Node A woke from peak sleep timer.");
+    if (lastSleepReason == static_cast<uint8_t>(SleepReason::IdleHeartbeat)) {
+      Serial.println("Node A woke from idle heartbeat sleep timer.");
+    } else if (lastSleepReason == static_cast<uint8_t>(SleepReason::PeakHeartbeat)) {
+      Serial.println("Node A woke from peak sleep timer.");
+    } else {
+      Serial.println("Node A woke from timer.");
+    }
+    lastSleepReason = static_cast<uint8_t>(SleepReason::None);
   }
   Serial.print("Node A far sensor trig/echo: ");
   Serial.print(hw::node_a::kFarSensor.trig);
@@ -681,15 +788,16 @@ void loop() {
   lastPowerReading = ina219Read();
   hasSnapshot = true;
 
+  updateIdleSleepEligibility(telemetry, nowMs);
   const EnergyTxMode currentTxMode = chooseEnergyTxMode(telemetry);
   const bool modeChanged = currentTxMode != lastTxMode;
   bool sendFullTelemetry = false;
   bool sendHeartbeat = false;
 
   if (currentTxMode == EnergyTxMode::ActiveTelemetry) {
-    sendFullTelemetry = modeChanged || (nowMs - lastFullTelemetryMs >= config::kTelemetryIntervalMs);
+    sendFullTelemetry = forceTelemetryOnIdleExit || modeChanged || (nowMs - lastFullTelemetryMs >= config::kTelemetryIntervalMs);
   } else if (currentTxMode == EnergyTxMode::IdleHeartbeat) {
-    sendFullTelemetry = !hasLastSentTelemetry || trafficStateChanged(telemetry, lastSentTelemetry);
+    sendFullTelemetry = hasLastSentTelemetry && trafficStateChanged(telemetry, lastSentTelemetry);
     sendHeartbeat = !sendFullTelemetry && (modeChanged || (nowMs - lastHeartbeatMs >= config::kHeartbeatIntervalMs));
   } else {
     const bool emergencyChanged = hasLastSentTelemetry && telemetry.emergencyRequested != lastSentTelemetry.emergencyRequested;
@@ -704,11 +812,20 @@ void loop() {
     lastHeartbeatMs = nowMs;
     lastSentTelemetry = telemetry;
     hasLastSentTelemetry = true;
+    forceTelemetryOnIdleExit = false;
   } else if (sendHeartbeat) {
     sendHeartbeatOverLoRa(currentTxMode, nowMs);
     lastHeartbeatMs = nowMs;
   }
   lastTxMode = currentTxMode;
+
+  if (currentTxMode == EnergyTxMode::IdleHeartbeat && idleSleepReadyToSleep(telemetry, nowMs)) {
+    if (lastTxPacketKind != "HEARTBEAT_IDLE") {
+      sendHeartbeatOverLoRa(EnergyTxMode::IdleHeartbeat, nowMs);
+      lastHeartbeatMs = nowMs;
+    }
+    enterIdleSleep(nowMs);
+  }
 
   if (nowMs - lastStatusMs >= config::kTelemetryIntervalMs) {
     lastStatusMs = nowMs;
@@ -750,6 +867,8 @@ void loop() {
       Serial.print(onOffLabel(telemetry.emergencyRequested));
       Serial.print(" | energy_mode=");
       Serial.print(energyModeLabel(currentTxMode));
+      Serial.print(" | idle_sleep=");
+      Serial.print(onOffLabel(idleSleepCycleActive));
       Serial.print(" | last_packet=");
       Serial.print(lastTxPacketKind);
       Serial.print(" | tx=");
